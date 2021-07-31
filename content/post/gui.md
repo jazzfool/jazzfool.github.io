@@ -51,7 +51,7 @@ Dear ImGui (and other immediate-mode UI) present a very elegant solution to many
 
 Even issues that some cite as being downsides of Dear ImGui are fixable. You don't have to render at 60 fps - only render when you receive an event. You don't have to regenerate the entire tree every frame - perform some diffing to reuse and recycle computation. Most of these supposed issues boil down to the implementation, not with the architecture itself.
 
-With that said, there are still some *fundamental* downsides with being fully immediate-mode. One such downside is layout. Since everything is computed in one go, you can't backtrack to fix up layout after receiving new information (e.g. sizing to fill but later discovering more room to fill; too bad, you can't go back). At this point, you'll have to resort to storing an intermediate tree to do a separate layout pass.
+With that said, there are still some *fundamental* downsides with being fully immediate-mode. One such downside is layout. Since everything is computed in one go, you can't backtrack to fix up layout after receiving new information (e.g., sizing to fill but later discovering more room to fill; too bad, you can't go back). At this point, you'll have to resort to storing an intermediate tree to do a separate layout pass.
 
 If you're willing to give up some of the purity of full immediate-mode and begin to introduce intermediate trees and layout callbacks then you could very well fix these issues. Though, I also find there is a mentality in immediate-mode UI that it should only be used for internal tooling (mostly for game engines). I whole-heartedly disagree. If you choose to make it more robust with intermediate trees and whatnot, then you have a React-esque library on your hands which is more than capable for more complex desktop applications, only missing a desktop focused widget library (as opposed to tooling focused).
 
@@ -63,3 +63,4 @@ There are many GUI libraries I left out, so I'll briefly explain why:
 - JavaFX, Swing, GTK, etc: These generally fall in the same camp as Qt and WPF.
 
 GUI is an incredibly difficult problem and an incredibly ugly problem. There is no elegance to be found here. A good GUI API implementation is one that is willing to be ugly for the sake of performance, accessibility, and usability.
+

@@ -29,7 +29,7 @@ disqusShortname = ""
     dev-to = ""
     email = ""
     facebook = ""
-    github = ""
+    github = "https://github.com/jazzfool"
     instagram = ""
     linkedin = ""
     medium = ""
@@ -49,9 +49,6 @@ disqusShortname = ""
 [[menu.header]]
   name = "Articles"
   url = "/articles/"
-[[menu.header]]
-  name = "GitHub"
-  url = "https://github.com/jazzfool"
 
 [markup]
 [markup.highlight]

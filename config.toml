@@ -1,0 +1,64 @@
+baseurl = ""
+languageCode = "en-us"
+title = "Jazzfool's Blog"
+theme = "hugo-tania"
+paginate = 6
+
+disqusShortname = ""
+
+[params]
+  # Emoji will show before the blog title on site navbar.
+  titleEmoji  = ""
+
+  # Logo will show before the blog title on site navbar.
+  titleLogo = ""
+
+  # Enable float footnotes.
+  # Default to true
+  enableFootnotes = false
+  siteName = "Jazzfool's Blog"
+  siteDesc = "A fool's thoughts"
+  author = "jazzfool"
+
+  # Limit how many categories filter show above search input.
+  # Default to 5
+  maxCategoryToShow = 10
+
+  # Show your social information with icon on index bio with `_index.md` content.
+  [params.socialOptions]
+    dev-to = ""
+    email = ""
+    facebook = ""
+    github = ""
+    instagram = ""
+    linkedin = ""
+    medium = ""
+    stack-overflow = ""
+    steam = ""
+    telegram = ""
+    twitter = ""
+    twitch = ""
+    whatsapp = ""
+  
+  # Comments settigns
+  [params.comments]
+    enabled = false
+    provider = ""
+
+[menu]
+[[menu.header]]
+  name = "Articles"
+  url = "/articles/"
+[[menu.header]]
+  name = "GitHub"
+  url = "https://github.com/jazzfool"
+
+[markup]
+[markup.highlight]
+  noClasses = false
+  lineNos = true
+[markup.goldmark.renderer]
+  unsafe = true
+
+[outputs]
+  home = ["HTML", "RSS", "JSON"]

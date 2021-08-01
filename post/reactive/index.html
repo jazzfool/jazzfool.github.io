@@ -1,0 +1,286 @@
+<!doctype html><html lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=x-ua-compatible content="IE=edge"><meta name=theme-color content="dark"><title>Exploring reactive UI | Jazzfool's Blog</title><meta property="og:site_name" content="Jazzfool's Blog"><meta property="og:title" content="Exploring reactive UI | Jazzfool's Blog"><meta itemprop=name content="Exploring reactive UI | Jazzfool's Blog"><meta name=twitter:title content="Exploring reactive UI | Jazzfool's Blog"><meta name=application-name content="Exploring reactive UI | Jazzfool's Blog"><meta name=description content="A fool's thoughts"><meta name=twitter:description content="A fool's thoughts"><meta itemprop=description content="A fool's thoughts"><meta property="og:description" content="A fool's thoughts"><meta property="og:type" content="article"><meta property="article:publisher" content="jazzfool"><meta property="og:article:published_time" content="2021-08-01T13:49:36+1000"><meta property="article:published_time" content="2021-08-01T13:49:36+1000"><script defer type=application/ld+json>{"@context":"http://schema.org","@type":"Article","headline":"Exploring reactive UI","author":{"@type":"Person","name":"jazzfool"},"datePublished":"2021-08-01","description":"","wordCount":2377,"mainEntityOfPage":"True","dateModified":"2021-08-01","publisher":{"@type":"Organization","name":"jazzfool","logo":{"@type":"imageObject","url":"favicon.ico"}}}</script><link rel="shortcut icon" type=image/x-icon href=/favicon.ico><link rel=stylesheet href=/sass/main.min.0c99f055b39fe4b0d1b88fad1a5706a35ef915854180b88a7d2a7a6df9bd2b0a.css></head><script>(function(){const b='ThemeColorScheme',a=localStorage.getItem(b),c=window.matchMedia('(prefers-color-scheme: dark)').matches===!0;a=='dark'||a==='auto'&&c?document.documentElement.dataset.userColorScheme='dark':document.documentElement.dataset.userColorScheme='light'})()</script><body class=dark><nav class=navbar><div class=container><div class=flex><div><a class=brand href=/>Jazzfool's Blog</a></div><div class=flex><a href=/articles/>Articles</a>
+<button id=dark-mode-button><svg class="light" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" focusable="false" width="1em" height="1em" style="-ms-transform:rotate(360deg);-webkit-transform:rotate(360deg);transform:rotate(360deg)" viewBox="0 0 36 36"><path fill="#ffd983" d="M30.312.776C32 19 20 32 .776 30.312c8.199 7.717 21.091 7.588 29.107-.429C37.9 21.867 38.03 8.975 30.312.776z"/><path d="M30.705 15.915a1.163 1.163.0 101.643 1.641 1.163 1.163.0 00-1.643-1.641zm-16.022 14.38a1.74 1.74.0 000 2.465 1.742 1.742.0 100-2.465zm13.968-2.147a2.904 2.904.0 01-4.108.0 2.902 2.902.0 010-4.107 2.902 2.902.0 014.108.0 2.902 2.902.0 010 4.107z" fill="#ffcc4d"/><rect x="0" y="0" width="36" height="36" fill="rgba(0, 0, 0, 0)"/></svg><svg class="dark" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" focusable="false" width="1em" height="1em" style="-ms-transform:rotate(360deg);-webkit-transform:rotate(360deg);transform:rotate(360deg)" viewBox="0 0 36 36"><path fill="#ffd983" d="M16 2s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2V2zm18 14s2 0 2 2-2 2-2 2h-2s-2 0-2-2 2-2 2-2h2zM4 16s2 0 2 2-2 2-2 2H2s-2 0-2-2 2-2 2-2h2zm5.121-8.707s1.414 1.414.0 2.828-2.828.0-2.828.0L4.878 8.708s-1.414-1.414.0-2.829c1.415-1.414 2.829.0 2.829.0l1.414 1.414zm21 21s1.414 1.414.0 2.828-2.828.0-2.828.0l-1.414-1.414s-1.414-1.414.0-2.828 2.828.0 2.828.0l1.414 1.414zm-.413-18.172s-1.414 1.414-2.828.0.0-2.828.0-2.828l1.414-1.414s1.414-1.414 2.828.0.0 2.828.0 2.828l-1.414 1.414zm-21 21s-1.414 1.414-2.828.0.0-2.828.0-2.828l1.414-1.414s1.414-1.414 2.828.0.0 2.828.0 2.828l-1.414 1.414zM16 32s0-2 2-2 2 2 2 2v2s0 2-2 2-2-2-2-2v-2z"/><circle fill="#ffd983" cx="18" cy="18" r="10"/><rect x="0" y="0" width="36" height="36" fill="rgba(0, 0, 0, 0)"/></svg></button></div></div></div></nav><main><div class=container><article><header class=article-header><div class=thumb><div><h1>Exploring reactive UI</h1><div class=post-meta><div>By jazzfool | <time>August 01, 2021</time>
+| 12 minutes</div><div class=tags></div></div></div></div></header></article><div class=article-post><h2 id=past><a href=#past class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Past</h2><p>Many are familiar with the practicality of the Qt API. It abides by what most already know of object-oriented programming and manually mutated states. By far the biggest advantage of such an API is its clarity; there is nothing to learn or understand as what you write is exactly what you mean.</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-cpp data-lang=cpp><span class=kt>int</span> <span class=n>state</span> <span class=o>=</span> <span class=mi>5</span><span class=p>;</span>
+
+<span class=c1>// ...
+</span><span class=c1></span>
+<span class=n>QPushButton</span><span class=o>*</span> <span class=n>add</span> <span class=o>=</span> <span class=k>new</span> <span class=n>QPushButton</span><span class=p>(</span><span class=k>this</span><span class=p>);</span>
+<span class=n>add</span><span class=o>-&gt;</span><span class=n>setLayout</span><span class=p>(</span><span class=n>top</span><span class=p>);</span>
+
+<span class=n>display</span><span class=o>-&gt;</span><span class=n>setValue</span><span class=p>(</span><span class=n>state</span><span class=p>);</span>
+
+<span class=n>connect</span><span class=p>(</span><span class=n>add</span><span class=p>,</span> <span class=o>&amp;</span><span class=n>QPushButton</span><span class=o>::</span><span class=n>pressed</span><span class=p>,</span> <span class=p>[</span><span class=o>&amp;</span><span class=p>]()</span> <span class=p>{</span>
+	<span class=n>state</span> <span class=o>+=</span> <span class=k>this</span><span class=o>-&gt;</span><span class=n>spinBox</span><span class=o>-&gt;</span><span class=n>value</span><span class=p>();</span>
+	<span class=n>display</span><span class=o>-&gt;</span><span class=n>setValue</span><span class=p>(</span><span class=n>state</span><span class=p>);</span>
+<span class=p>});</span>
+</code></pre></td></tr></table></div></div><p>Already we see a flaw however. We are duplicating procedures. <code>display->setValue</code> must be called twice in order to have the UI behave as we want.</p><p>This problem is really the consequence of two concerns in GUI APIs:</p><ul><li>Initialization/update phases</li><li>Lack of a single source of truth</li></ul><p>The former issue is less of a concern, however the latter is strikingly critical. There is some widget <code>display</code> that depends on our data and as a result we must propagate any mutations to that data. What we have done - and you may not have realized it - is write an <strong>implied dependency</strong> between <code>state</code> and some data inside <code>display</code>. In fact, we do this kind of thing all the time without realizing it.</p><p>Unfortunately, this implied dependency is brittle. It can easily be shattered by any third party that inconsistently mutates <code>state</code>/<code>display</code>, being completely unaware of the <strong>unspoken link</strong> (i.e., implied dependency) between <code>state</code> and <code>display</code> that we wrote here.</p><p>Whose fault would that be? I argue it&rsquo;s the API&rsquo;s fault.</p><h2 id=present><a href=#present class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Present</h2><p>Thankfully, we already figured this one out; let&rsquo;s keep the dependencies implicit but instead lock it down under a declarative interface.</p><p>A prime, and maybe familiar example, is React.</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-js data-lang=js><span class=kd>function</span> <span class=nx>Stateful</span><span class=p>()</span> <span class=p>{</span>
+	<span class=kr>const</span> <span class=p>[</span><span class=nx>state</span><span class=p>,</span> <span class=nx>setState</span><span class=p>]</span> <span class=o>=</span> <span class=nx>useState</span><span class=p>(</span><span class=mi>5</span><span class=p>);</span>
+	<span class=kr>const</span> <span class=p>[</span><span class=nx>spinBox</span><span class=p>,</span> <span class=nx>setSpinBox</span><span class=p>]</span> <span class=o>=</span> <span class=nx>useState</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+
+	<span class=k>return</span> <span class=p>(</span>
+		<span class=c1>// ...
+</span><span class=c1></span>		<span class=o>&lt;</span><span class=nx>button</span> <span class=nx>onClick</span><span class=o>=</span><span class=p>{()</span> <span class=p>=&gt;</span> <span class=nx>setState</span><span class=p>(</span><span class=nx>state</span> <span class=o>+</span> <span class=nx>spinBox</span><span class=p>)}</span><span class=o>&gt;</span>
+		<span class=o>&lt;</span><span class=nx>Display</span> <span class=nx>value</span><span class=o>=</span><span class=p>{</span><span class=nx>state</span><span class=p>}</span><span class=o>&gt;</span>
+		<span class=c1>// ...
+</span><span class=c1></span>	<span class=p>);</span>
+<span class=p>}</span>
+</code></pre></td></tr></table></div></div><p>The UI system still has no clue that <code>display</code> and <code>state</code> are linked, yet our code (and in particular our button callback) is more concise. No initialization phase needed!</p><p>So how is black magic like this possible? Simple; it&rsquo;s all phony. Of course there is no underlying update procedure being generated, how could there be one if React doesn&rsquo;t even know the state dependencies! No, instead React simply forgets about trying to keep track of all that and just recreates our UI tree every time something happens, then generates stable identities to remember the previous frame&rsquo;s state (which is all wrapped up and abstracted away into a single <code>useState</code>).</p><p>Fairly inefficient at runtime, yet UIs are far more expressive with React. As a side bonus, the UI tree is declarative and thus shifting around the UI structure dynamically is a breeze compared to something like Qt.</p><p>I also include Dear ImGui and its kin in this category. If anything, Dear ImGui is even more dynamic than React since it doesn&rsquo;t even bother to do any diffing.</p><h2 id=explicit-dependencies><a href=#explicit-dependencies class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Explicit dependencies</h2><p>Now we venture out into the unknown in an attempt to scope out possible solutions. We&rsquo;ve seen two examples of the opposite extremas of GUI APIs:</p><ul><li>Qt with its highly imperative and object-oriented procedures, proving to be conservative and practical</li><li>React with an expressive and declarative interface at the cost of performance</li></ul><p>It&rsquo;s fair to say then that the ideal solution is a declarative interface, like React, that is performant, like Qt. The key to such a GUI API is something neither Qt, React, or any other GUI library like them have: <strong>Explicit dependencies</strong>.</p><p>More specifically, an explicit dependency <em>graph</em> - in other words, a directed acyclic graph between all state.</p><p>All the GUIs we write will always have a dependency graph, hiding in plain sight, but they are never written out. You never write down that two states depend on each other. You only describe the relationship through mutating procedures such as callbacks. Although to be fair, you probably don&rsquo;t want to write out those dependencies by hand either - and you don&rsquo;t have to.</p><p>The idea is simple: GUIs should be a metaprogram which encode dependencies and mutations, after which the UI system steps in, builds an explicit dependency graph, and writes the actual GUI program with all the dependencies resolved back down to an implied form.</p><p>In fact, Svelte already does exactly this using a precompiler.</p><p>Here&rsquo;s a rough sketch of exactly what I mean. Let&rsquo;s start with the &ldquo;metaprogram&rdquo; of the UI. This will just be our React code (yup, the UI metaprogram is identical to regular UI code).</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-js data-lang=js><span class=kd>function</span> <span class=nx>Stateful</span><span class=p>()</span> <span class=p>{</span>
+	<span class=kr>const</span> <span class=p>[</span><span class=nx>state</span><span class=p>,</span> <span class=nx>setState</span><span class=p>]</span> <span class=o>=</span> <span class=nx>useState</span><span class=p>(</span><span class=mi>5</span><span class=p>);</span>
+	<span class=kr>const</span> <span class=p>[</span><span class=nx>spinBox</span><span class=p>,</span> <span class=nx>setSpinBox</span><span class=p>]</span> <span class=o>=</span> <span class=nx>useState</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span>
+
+	<span class=k>return</span> <span class=p>(</span>
+		<span class=c1>// ...
+</span><span class=c1></span>		<span class=o>&lt;</span><span class=nx>button</span> <span class=nx>onClick</span><span class=o>=</span><span class=p>{()</span> <span class=p>=&gt;</span> <span class=nx>setState</span><span class=p>(</span><span class=nx>state</span> <span class=o>+</span> <span class=nx>spinBox</span><span class=p>)}</span><span class=o>&gt;</span>
+		<span class=o>&lt;</span><span class=nx>Display</span> <span class=nx>value</span><span class=o>=</span><span class=p>{</span><span class=nx>state</span><span class=p>}</span><span class=o>&gt;</span>
+		<span class=c1>// ...
+</span><span class=c1></span>	<span class=p>);</span>
+<span class=p>}</span>
+</code></pre></td></tr></table></div></div><p>To really understand what I mean by &ldquo;UI metaprogram&rdquo;, let&rsquo;s look at it from a different perspective. Instead of seeing the returned UI tree as something to be recreated every frame, you should view it as a static <em>template</em>, waiting to be filled with real data. Instead of seeing <code>useState</code> as a call to grab the cached state, see it as a node in the dependency graph. Finally, consider the properties (e.g., <code>value={state}</code>) to be a directed edge from <code>state</code> to <code>value</code>.</p><p>That&rsquo;s it. That&rsquo;s all the UI system would need to generate retained-mode UI code. Let me rewrite it in a more step-by-step sense:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-js data-lang=js><span class=kd>function</span> <span class=nx>Stateful</span><span class=p>(</span><span class=nx>graph</span><span class=p>)</span> <span class=p>{</span>
+	<span class=kd>var</span> <span class=nx>w</span> <span class=o>=</span> <span class=nx>graph</span><span class=p>.</span><span class=nx>addWidget</span><span class=p>();</span>
+
+	<span class=nx>graph</span><span class=p>.</span><span class=nx>addNode</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s2>&#34;state&#34;</span><span class=p>,</span> <span class=mi>5</span><span class=p>);</span>
+	<span class=nx>graph</span><span class=p>.</span><span class=nx>addNode</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s2>&#34;spinBox&#34;</span><span class=p>,</span> <span class=mi>0</span><span class=p>);</span>
+
+	<span class=kd>var</span> <span class=nx>btn</span> <span class=o>=</span> <span class=nx>button</span><span class=p>(</span><span class=nx>graph</span><span class=p>);</span>
+	<span class=kd>var</span> <span class=nx>display</span> <span class=o>=</span> <span class=nx>Display</span><span class=p>(</span><span class=nx>graph</span><span class=p>);</span>
+
+	<span class=nx>graph</span><span class=p>.</span><span class=nx>addReaction</span><span class=p>(</span><span class=nx>btn</span><span class=p>,</span> <span class=s2>&#34;onClick&#34;</span><span class=p>,</span> <span class=nx>graph</span><span class=p>.</span><span class=nx>mutate</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s2>&#34;state&#34;</span><span class=p>,</span> <span class=p>(</span><span class=nx>state</span><span class=p>,</span> <span class=nx>graph</span><span class=p>)</span> <span class=p>=&gt;</span> <span class=nx>state</span> <span class=o>+</span> <span class=nx>graph</span><span class=p>.</span><span class=nx>get</span><span class=p>(</span><span class=nx>w</span><span class=p>,</span> <span class=s2>&#34;spinBox&#34;</span><span class=p>)));</span>
+	<span class=nx>graph</span><span class=p>.</span><span class=nx>addDependency</span><span class=p>(</span><span class=nx>display</span><span class=p>,</span> <span class=s2>&#34;value&#34;</span><span class=p>,</span> <span class=nx>w</span><span class=p>,</span> <span class=s2>&#34;state&#34;</span><span class=p>);</span>
+
+	<span class=k>return</span> <span class=nx>w</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></td></tr></table></div></div><p>For example, if this <code>graph</code> was an interface to a UI precompiler like Svelte, then it may output the following.</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-js data-lang=js><span class=kd>var</span> <span class=nx>state</span> <span class=o>=</span> <span class=mi>5</span><span class=p>;</span>   <span class=c1>// given by graph.addNode
+</span><span class=c1></span><span class=kd>var</span> <span class=nx>spinBox</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span> <span class=c1>// given by graph.addNode
+</span><span class=c1></span>
+<span class=kd>var</span> <span class=nx>btn</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Button</span><span class=p>();</span>
+<span class=kd>var</span> <span class=nx>display</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>Display</span><span class=p>();</span>
+
+<span class=nx>btn</span><span class=p>.</span><span class=nx>onClick</span> <span class=o>=</span> <span class=p>()</span> <span class=p>=&gt;</span> <span class=p>{</span> <span class=c1>// given by graph.addReaction
+</span><span class=c1></span>	<span class=nx>state</span> <span class=o>=</span> <span class=nx>state</span> <span class=o>+</span> <span class=nx>spinBox</span><span class=p>;</span> <span class=c1>// given by graph.mutate
+</span><span class=c1></span>	<span class=nx>display</span><span class=p>.</span><span class=nx>value</span> <span class=o>=</span> <span class=nx>state</span><span class=p>;</span>   <span class=c1>// given by graph.addDependency
+</span><span class=c1></span><span class=p>};</span>
+</code></pre></td></tr></table></div></div><p>The real challenge comes from doing this <em>without</em> a precompiler.</p><h3 id=black-box><a href=#black-box class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Black box</h3><p>One way of finding mutating code paths from declarative code is by running &ldquo;tracers&rdquo; through the function. If it were a black box (which it effectively <em>is</em>), then it can be reverse engineered by tweaking inputs and observing outputs.</p><p>Say there is a mysterious function, <code>mystery</code>, which takes application state and produces a UI tree. To make this easier, assume we&rsquo;re given two additional helper functions; <code>state_muts</code> (which produces all the possible mutations of the state), and <code>find_mutation</code> (which diffs the UI tree to find and encode the exact UI tree mutations that occurred).</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-rust data-lang=rust><span class=kd>let</span><span class=w> </span><span class=k>mut</span><span class=w> </span><span class=n>state</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>State</span>::<span class=n>default</span><span class=p>();</span><span class=w>
+</span><span class=w></span><span class=kd>let</span><span class=w> </span><span class=k>mut</span><span class=w> </span><span class=n>ui</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>mystery</span><span class=p>(</span><span class=o>&amp;</span><span class=n>state</span><span class=p>);</span><span class=w>
+</span><span class=w></span><span class=kd>let</span><span class=w> </span><span class=k>mut</span><span class=w> </span><span class=n>lut</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>HashMap</span>::<span class=o>&lt;</span><span class=n>StateMutation</span><span class=p>,</span><span class=w> </span><span class=n>UiMutation</span><span class=o>&gt;</span>::<span class=n>new</span><span class=p>();</span><span class=w>
+</span><span class=w></span><span class=k>for</span><span class=w> </span><span class=n>state_mut</span><span class=w> </span><span class=k>in</span><span class=w> </span><span class=n>state_muts</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>	</span><span class=n>state_mut</span><span class=p>.</span><span class=n>patch</span><span class=p>(</span><span class=n>state</span><span class=p>);</span><span class=w>
+</span><span class=w>	</span><span class=kd>let</span><span class=w> </span><span class=n>new_ui</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>mystery</span><span class=p>(</span><span class=n>state</span><span class=p>);</span><span class=w>
+</span><span class=w>	</span><span class=n>lut</span><span class=p>.</span><span class=n>insert</span><span class=p>(</span><span class=n>state_mut</span><span class=p>,</span><span class=w> </span><span class=n>find_mutation</span><span class=p>(</span><span class=o>&amp;</span><span class=n>ui</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>new_ui</span><span class=p>));</span><span class=w>
+</span><span class=w>	</span><span class=n>ui</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>new_ui</span><span class=p>;</span><span class=w>
+</span><span class=w></span><span class=p>}</span><span class=w>
+</span></code></pre></td></tr></table></div></div><p>By doing this, we have built a look-up table, <code>lut</code>, which maps state mutations to UI mutations. Having this LUT means that whenever the state does change, we don&rsquo;t need to run the entire process again since we can simply consult this LUT to find how we should change the UI correspondingly. This is something of a differential of <code>mystery</code>; small changes to the input to observe the small change to the output.</p><p>Unfortunately this notion only works in the abstract sense. It would be quite elegant if this was indeed reduced to a calculus problem, but such UI mutations are veiled behind string labels and other widget properties. To make this work, it would require a property system - something to direly avoid (at least on a library-level).</p><h3 id=maps><a href=#maps class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Maps</h3><p>Many parts of a UI fall down to a simple mapping, <code>State -> UI</code>, <code>Number -> Formatted String</code>, <code>Formatted String -> Label</code>, etc. We can leverage this and formalize the notion that state is derived off of other state.</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-rust data-lang=rust><span class=kd>let</span><span class=w> </span><span class=n>count</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>State</span>::<span class=n>new</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span><span class=w>
+</span><span class=w></span><span class=kd>let</span><span class=w> </span><span class=n>formatted_string</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>count</span><span class=p>.</span><span class=n>map</span><span class=p>(</span><span class=o>|</span><span class=n>count</span><span class=o>|</span><span class=w> </span><span class=n>format</span><span class=o>!</span><span class=p>(</span><span class=s>&#34;Count: {}&#34;</span><span class=p>,</span><span class=w> </span><span class=n>count</span><span class=p>));</span><span class=w>
+</span><span class=w></span><span class=n>label</span><span class=p>.</span><span class=n>set_label</span><span class=p>(</span><span class=n>formatted_string</span><span class=p>);</span><span class=w>
+</span></code></pre></td></tr></table></div></div><p>This enables us to write the UI in whatever manner we desire (imperative or declarative), yet it will be able to update itself without any additional reactivity by us. This solution still poses some problems:</p><ul><li>State mappings must persistently hold a reference to the state they map.</li><li>State mappings should be lazily evaluated (otherwise we&rsquo;re back to square one in terms of performance).</li></ul><p>The first problem can be solved with <code>Rc&lt;Cell&lt;T>></code>, and as much as I despise the use of interior mutability in favour of letting data flow in the correct direction, state mappings are a graph and graphs have no single linear order.</p><p>The second problem is solved by using a semaphore-like system where each state holds the number of mutations, and so does each mapping. Whenever those numbers fall out of sync then the mapping must be re-evaluated.</p><p>Take note of what we&rsquo;ve done here. Dependencies are now crystal clear. By just looking at the code you can be certain that e.g., the label text is entirely dependent on <code>count</code>, because of the <code>count.map(...)</code>.</p><p><a href="https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=e885b458ab41ed09792bf766615c93f7">Here&rsquo;s a proof-of-concept implementation in Rust</a>.</p><h2 id=getting-wild-with-async><a href=#getting-wild-with-async class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Getting wild with async</h2><p>Stepping away from the matter of dependencies for a second, let’s explore a more novel approach to reactive UI as a whole.</p><p>This one is quite exotic and I haven&rsquo;t seen it done before. The core idea is to have each widget be an async task which polls its in-going message channel and can spawn sub-tasks to act as child widgets. This implies that every widget essentially has its own event loop, rather than a single application-wide event loop for all widgets.</p><p>A possible interface could like this.</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-rust data-lang=rust><span class=k>async</span><span class=w> </span><span class=k>fn</span> <span class=nf>my_widget</span><span class=p>(</span><span class=n>rcv</span>: <span class=nc>Receiver</span><span class=p>,</span><span class=w> </span><span class=n>out</span>: <span class=nc>Rc</span><span class=o>&lt;</span><span class=n>Sender</span><span class=o>&gt;</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>	</span><span class=kd>let</span><span class=w> </span><span class=k>mut</span><span class=w> </span><span class=n>count</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>
+</span><span class=w>	</span><span class=k>while</span><span class=w> </span><span class=kd>let</span><span class=w> </span><span class=nb>Some</span><span class=p>(</span><span class=n>event</span><span class=p>)</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>rcv</span><span class=p>.</span><span class=n>next</span><span class=p>().</span><span class=k>await</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>		</span><span class=k>match</span><span class=w> </span><span class=n>event</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>			</span><span class=n>Event</span>::<span class=n>Update</span><span class=p>(</span><span class=n>my_props</span><span class=p>)</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=cm>/* update props */</span><span class=p>,</span><span class=w>
+</span><span class=w>			</span><span class=n>Event</span>::<span class=n>Msg</span><span class=p>(</span><span class=n>my_msg</span><span class=p>)</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=k>match</span><span class=w> </span><span class=n>my_msg</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>				</span><span class=n>Msg</span>::<span class=n>Incr</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=n>count</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w> </span><span class=n>out</span><span class=p>.</span><span class=n>render</span><span class=p>();</span><span class=w> </span><span class=p>},</span><span class=w>
+</span><span class=w>				</span><span class=n>Msg</span>::<span class=n>Decr</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=n>count</span><span class=w> </span><span class=o>-=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w> </span><span class=n>out</span><span class=p>.</span><span class=n>render</span><span class=p>();</span><span class=w> </span><span class=p>},</span><span class=w>
+</span><span class=w>			</span><span class=p>},</span><span class=w>
+</span><span class=w>			</span><span class=n>Event</span>::<span class=n>Render</span><span class=p>(</span><span class=n>to</span><span class=p>)</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>				</span><span class=n>to</span><span class=p>.</span><span class=n>send</span><span class=p>(</span><span class=o>||</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>					</span><span class=n>WidgetTask</span>::<span class=n>new</span><span class=p>(</span><span class=n>column</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=w>
+</span><span class=w>						</span><span class=p>(</span><span class=n>label</span><span class=p>,</span><span class=w> </span><span class=s>&#34;Increment&#34;</span><span class=p>),</span><span class=w>
+</span><span class=w>						</span><span class=p>(</span><span class=n>button</span><span class=p>,</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=n>out</span><span class=p>.</span><span class=n>send_msg</span><span class=p>(</span><span class=n>Msg</span>::<span class=n>Incr</span><span class=p>)),</span><span class=w> </span><span class=c1>// out sends to rcv
+</span><span class=c1></span><span class=w>						</span><span class=p>(</span><span class=n>button</span><span class=p>,</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=n>out</span><span class=p>.</span><span class=n>send_msg</span><span class=p>(</span><span class=n>Msg</span>::<span class=n>Decr</span><span class=p>)),</span><span class=w>
+</span><span class=w>					</span><span class=p>))</span><span class=w>
+</span><span class=w>				</span><span class=p>});</span><span class=w>
+</span><span class=w>			</span><span class=p>}</span><span class=w>
+</span><span class=w>		</span><span class=p>}</span><span class=w>
+</span><span class=w>	</span><span class=p>}</span><span class=w>
+</span><span class=w></span><span class=p>}</span><span class=w>
+</span></code></pre></td></tr></table></div></div><p>Under the hood it would presumably use diffing, yet the diffing can be much more targeted as you can signal directly into a widget task to tell it to update itself. You can also set up a feedback loop to let yourself know of an external event. Moreover, using channels means you can set up any communication pipeline you want between any two widgets. I haven&rsquo;t explored the limits of this kind of messaging and eventing system yet.</p><p>On the other hand, the interface above is verbose and ugly so it&rsquo;s a much better idea to abstract the core message loop away and expose programmable parts of it with an interface.</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-rust data-lang=rust><span class=k>enum</span> <span class=nc>Msg</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>	</span><span class=n>Incr</span><span class=p>,</span><span class=w>
+</span><span class=w>	</span><span class=n>Decr</span><span class=p>,</span><span class=w>
+</span><span class=w></span><span class=p>}</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=k>struct</span> <span class=nc>Counter</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>	</span><span class=n>count</span>: <span class=kt>i32</span><span class=p>,</span><span class=w>
+</span><span class=w></span><span class=p>}</span><span class=w>
+</span><span class=w>
+</span><span class=w></span><span class=cp>#[async_trait]</span><span class=w>
+</span><span class=w></span><span class=k>impl</span><span class=w> </span><span class=n>Widget</span><span class=w> </span><span class=k>for</span><span class=w> </span><span class=n>Counter</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>	</span><span class=c1>// Properties are the public interface of the widget (in place of setters).
+</span><span class=c1></span><span class=w>	</span><span class=k>type</span> <span class=nc>Props</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>();</span><span class=w>
+</span><span class=w>	</span><span class=k>type</span> <span class=nc>Message</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Msg</span><span class=p>;</span><span class=w>
+</span><span class=w>
+</span><span class=w>	</span><span class=c1>// Called on spawn
+</span><span class=c1></span><span class=w>	</span><span class=k>async</span><span class=w> </span><span class=k>fn</span> <span class=nf>new</span><span class=p>(</span><span class=n>_</span>: <span class=nc>Self</span>::<span class=n>Props</span><span class=p>)</span><span class=w> </span>-&gt; <span class=nc>Self</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>		</span><span class=n>Counter</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>			</span><span class=n>count</span>: <span class=mi>0</span><span class=p>,</span><span class=w>
+</span><span class=w>		</span><span class=p>}</span><span class=w>
+</span><span class=w>	</span><span class=p>}</span><span class=w>
+</span><span class=w>
+</span><span class=w>	</span><span class=c1>// Called on diff
+</span><span class=c1></span><span class=w>	</span><span class=k>async</span><span class=w> </span><span class=k>fn</span> <span class=nf>reduce</span><span class=p>(</span><span class=o>&amp;</span><span class=k>mut</span><span class=w> </span><span class=bp>self</span><span class=p>,</span><span class=w> </span><span class=n>_</span>: <span class=nc>Self</span>::<span class=n>Props</span><span class=p>)</span><span class=w> </span><span class=p>{}</span><span class=w>
+</span><span class=w>
+</span><span class=w>	</span><span class=k>async</span><span class=w> </span><span class=k>fn</span> <span class=nf>update</span><span class=p>(</span><span class=o>&amp;</span><span class=k>mut</span><span class=w> </span><span class=bp>self</span><span class=p>,</span><span class=w> </span><span class=n>msg</span>: <span class=kp>&amp;</span><span class=nc>Msg</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>		</span><span class=k>match</span><span class=w> </span><span class=n>msg</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>			</span><span class=n>Msg</span>::<span class=n>Incr</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=bp>self</span><span class=p>.</span><span class=n>count</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=mi>1</span><span class=p>,</span><span class=w>
+</span><span class=w>			</span><span class=n>Msg</span>::<span class=n>Decr</span><span class=w> </span><span class=o>=&gt;</span><span class=w> </span><span class=bp>self</span><span class=p>.</span><span class=n>count</span><span class=w> </span><span class=o>-=</span><span class=w> </span><span class=mi>1</span><span class=p>,</span><span class=w>
+</span><span class=w>		</span><span class=p>}</span><span class=w>
+</span><span class=w>	</span><span class=p>}</span><span class=w>
+</span><span class=w>
+</span><span class=w>	</span><span class=c1>// This is only called after Self::update.
+</span><span class=c1></span><span class=w>	</span><span class=c1>// Since this only returns a tree of properties, the widget driver can either:
+</span><span class=c1></span><span class=w>	</span><span class=c1>// 1) Spawn the tasks if this is the first render.
+</span><span class=c1></span><span class=w>	</span><span class=c1>// 2) Diff and call `reduce` on the existing tree.
+</span><span class=c1></span><span class=w>	</span><span class=k>async</span><span class=w> </span><span class=k>fn</span> <span class=nf>view</span><span class=p>(</span><span class=o>&amp;</span><span class=bp>self</span><span class=p>,</span><span class=w> </span><span class=n>out</span>: <span class=nc>MessageOut</span><span class=o>&lt;</span><span class=n>Msg</span><span class=o>&gt;</span><span class=p>)</span><span class=w> </span>-&gt; <span class=nc>Column</span><span class=w> </span><span class=p>{</span><span class=w>
+</span><span class=w>		</span><span class=c1>// These functions return (Self::Props, Self::spawn)
+</span><span class=c1></span><span class=w>		</span><span class=n>Column</span>::<span class=n>with_children</span><span class=p>([</span><span class=w>
+</span><span class=w>			</span><span class=n>Label</span>::<span class=n>with_text</span><span class=p>(</span><span class=n>format</span><span class=o>!</span><span class=p>(</span><span class=s>&#34;Count: {}&#34;</span><span class=p>,</span><span class=w> </span><span class=bp>self</span><span class=p>.</span><span class=n>count</span><span class=p>)),</span><span class=w>
+</span><span class=w>			</span><span class=n>Row</span>::<span class=n>with_children</span><span class=p>([</span><span class=w>
+</span><span class=w>				</span><span class=n>Button</span>::<span class=n>with_child</span><span class=p>(</span><span class=n>Label</span>::<span class=n>with_text</span><span class=p>(</span><span class=s>&#34;Increment&#34;</span><span class=p>))</span><span class=w>
+</span><span class=w>					</span><span class=p>.</span><span class=n>on_click</span><span class=p>(</span><span class=o>|</span><span class=n>_</span><span class=o>|</span><span class=w> </span><span class=n>out</span><span class=p>.</span><span class=n>send</span><span class=p>(</span><span class=n>Msg</span>::<span class=n>Incr</span><span class=p>)),</span><span class=w> </span><span class=c1>// Eventually invokes Self::update
+</span><span class=c1></span><span class=w>				</span><span class=n>Button</span>::<span class=n>with_child</span><span class=p>(</span><span class=n>Label</span>::<span class=n>with_text</span><span class=p>(</span><span class=s>&#34;Decrement&#34;</span><span class=p>))</span><span class=w>
+</span><span class=w>					</span><span class=p>.</span><span class=n>on_click</span><span class=p>(</span><span class=o>|</span><span class=n>_</span><span class=o>|</span><span class=w> </span><span class=n>out</span><span class=p>.</span><span class=n>send</span><span class=p>(</span><span class=n>Msg</span>::<span class=n>Decr</span><span class=p>)),</span><span class=w>
+</span><span class=w>			</span><span class=p>]),</span><span class=w>
+</span><span class=w>		</span><span class=p>])</span><span class=w>
+</span><span class=w>	</span><span class=p>}</span><span class=w>
+</span><span class=w></span><span class=p>}</span><span class=w>
+</span></code></pre></td></tr></table></div></div><p>It shows strong resemblance to the Elm architecture, however in this example <code>Msg</code> can be piped directly into the widget&rsquo;s message loop rather than cascading the messages down the view hierarchy. Therefore, the exact widget branch that was updated can be identified and diffed instead of blindly diffing the entire UI tree.</p><p>Some things to investigate:</p><ul><li>Event order</li><li>Layout and rendering</li><li>Performance</li></ul><h2 id=compromising><a href=#compromising class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Compromising</h2><p>I think that reactive UI is quite elegant. It welcomes curious-minded exploration, functional purity, and theoretical analysis. However, I think that it appears so elegant that some are blinded by its applicability. Reactive declarative UI code looks beautiful when writing a counter, but what about a more &ldquo;ugly&rdquo; application? Something much more heavy-duty? Say, a video editor, or DAW, or drawing software. How will you map any &ldquo;pure&rdquo; data down?</p><p>The problem here is that the core of these kinds of applications is actually incredibly unrelated to the UI. A DAW&rsquo;s core is just a DSP. A video editor&rsquo;s core is mostly just a compositor. Blender&rsquo;s mesh editor core comes down to a 3D scene stored in a few vertex buffers. Obviously a DAW isn&rsquo;t just an interface to a DSP, it&rsquo;s a big shell to add VSTs, MIDI, drums, etc. A video editor isn&rsquo;t just an interface to a compositor, it&rsquo;s a way to blend VFX, 3D scenes, and A/V. Then most obviously, Blender mesh editor isn&rsquo;t just an interface to upload bytes to a vertex/index buffer.</p><p>All the value of these kinds of applications comes down to the UI and as such there&rsquo;s practically no way to bridge the gap between the core and the UI without introducing a thick intermediate layer that has state only for the sake of the UI. That is something that reactive UI does not appreciate.</p><p>Reactive UI works extremely well where there&rsquo;s a clear and direct connection between the UI and state. For example, a counter state maps directly to an incrementing button and a formatted label. However, a list of audio tracks does not quite map to a DAW.</p><p>There&rsquo;s a time and place for reactive and declarative UI, and there&rsquo;s a time and place for procedural and imperative UI. I advocate for a UI platform that allows you to mix the two seamlessly such that once can use imperative UI for the nitty-gritty widgets and declarative UI for the composition of widgets inside forms/panels. In fact, this idea is not so alien. Iced, for example, does exactly this, wherein the elementary building blocks of the declarative UI are irreducible widgets.</p><h2 id=closing-thoughts><a href=#closing-thoughts class=anchor><svg class="icon" aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5.0-3-1.69-3-3.5S2.55 3 4 3h4c1.45.0 3 1.69 3 3.5.0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98.0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98.0-2-1.22-2-2.5.0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45.0 3-1.69 3-3.5S14.5 6 13 6z"/></svg></a>Closing thoughts</h2><p>There is lots of room for playing around when it comes to reactive UI. In particular, I&rsquo;m a fan of <a href=https://raphlinus.github.io/>Raph Linus&rsquo;s blog</a> where he has made several posts exploring this very topic. I hope to see more work and movement occur in this space as it may very well shape the future of GUI libraries.</p></div></div><div class=container><nav class="flex container suggested"><a rel=prev href=/post/gui/ title="Previous post (older)"><span>Previous</span>
+The grim GUI landscape</a></nav></div><div class=container></div></main></main><footer class="footer flex"><section class=container><nav class=footer-links></nav></section><script defer src=/ts/features.39c567b3af1363f8abe74bfd650f3d58cb963716b7ad4b3b53f801d3ca585599.js data-enable-footnotes=false></script></footer></body></html>

@@ -287,7 +287,7 @@ All the value of these kinds of applications comes down to the UI and as such th
 
 Reactive UI works extremely well where there's a clear and direct connection between the UI and state. For example, a counter state maps directly to an incrementing button and a formatted label. However, a list of audio tracks does not quite map to a DAW.
 
-There's a time and place for reactive and declarative UI, and there's a time and place for procedural and imperative UI. I advocate for a UI platform that allows you to mix the two seamlessly such that once can use imperative UI for the nitty-gritty widgets and declarative UI for the composition of widgets inside forms/panels. In fact, this idea is not so alien. Iced, for example, does exactly this, wherein the elementary building blocks of the declarative UI are irreducible widgets.
+There's a time and place for reactive and declarative UI, and there's a time and place for procedural and imperative UI. I advocate for a UI platform that allows you to mix the two seamlessly such that one can use imperative UI for the nitty-gritty widgets and declarative UI for the composition of widgets inside forms/panels. In fact, this idea is not so alien. Iced, for example, does exactly this, wherein the elementary building blocks of the declarative UI are irreducible widgets.
 
 ## Closing thoughts
 

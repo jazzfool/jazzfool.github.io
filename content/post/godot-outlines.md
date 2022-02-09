@@ -10,7 +10,7 @@ Outlines are a handy visual tool in games to show focus on objects. Unfortunatel
 
 This guide will show you how to make outlines that look like this:
 
-![Godot outlines screenshot](/static/static/godot-outline.png)
+![Godot outlines screenshot](/static/godot-outline.png)
 
 # Step 1: Isolating depth
 
@@ -18,7 +18,7 @@ Firstly, we need to isolate the depth for the objects we want to outline. To do 
 
 This is the scene tree you need to set up:
 
-![Godot scene tree](/static/static/godot-outline-scene-tree.png)
+![Godot scene tree](/static/godot-outline-scene-tree.png)
 
 _(Note: `OutlineViewport` and `GameViewport` are of type `SubViewport`, and `GameViewportContainer` is of type `SubViewportContainer`)_
 

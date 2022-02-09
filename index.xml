@@ -142,6 +142,7 @@ Step 1: Isolating depth
 &lt;/span>&lt;span class="lnt">43
 &lt;/span>&lt;span class="lnt">44
 &lt;/span>&lt;span class="lnt">45
+&lt;/span>&lt;span class="lnt">46
 &lt;/span>&lt;/code>&lt;/pre>&lt;/td>
 &lt;td class="lntd">
 &lt;pre class="chroma">&lt;code class="language-python" data-lang="python">&lt;span class="c1"># Root.gd&lt;/span>
@@ -172,6 +173,7 @@ Step 1: Isolating depth
 &lt;span class="c1"># 0 disables all duplicate flags - we only want to duplicate the visuals&lt;/span>
 &lt;span class="n">var&lt;/span> &lt;span class="n">copy&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">node&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">duplicate&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">0&lt;/span>&lt;span class="p">)&lt;/span>
 &lt;span class="n">copy&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_script&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">OutlineCopy&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">copy&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">original&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">node&lt;/span>
 &lt;span class="n">outline_scene&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">add_child&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">copy&lt;/span>&lt;span class="p">)&lt;/span>
 &lt;span class="n">node&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_meta&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;outline_object&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">copy&lt;/span>&lt;span class="p">)&lt;/span>
 &lt;span class="n">func&lt;/span> &lt;span class="n">remove_outline&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">node&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">MeshInstance3D&lt;/span>&lt;span class="p">):&lt;/span>
@@ -192,7 +194,7 @@ d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.
 &lt;/a>
 Step 2: Outline
 &lt;/h1>
-&lt;p>Now that we have a depth buffer isolated to objects that are outlined, we can just apply a post-process outline. We just run dead-simple edge detection on said depth buffer, compare, and if the &amp;ldquo;edge value&amp;rdquo; falls above some threshold then we output a fixed color instead of the scene color.&lt;/p>
+&lt;p>Now that we have a depth buffer isolated to objects that are outlined, we can just apply a post-process outline. We run dead-simple edge detection on said depth buffer, compare, and if the &amp;ldquo;edge value&amp;rdquo; falls above some threshold then we output a fixed color instead of the scene color.&lt;/p>
 &lt;p>Just add a shader material to &lt;code>GameViewportContainer&lt;/code> with the following shader:&lt;/p>
 &lt;div class="highlight">&lt;div class="chroma">
 &lt;table class="lntable">&lt;tr>&lt;td class="lntd">
@@ -240,7 +242,7 @@ Step 2: Outline
 &lt;span class="p">}&lt;/span>
 &lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
 &lt;/div>
-&lt;/div>&lt;p>_Credit for this shader goes to &lt;a href="http://blog.dalton.gd/quick-outline-ue4/_">http://blog.dalton.gd/quick-outline-ue4/_&lt;/a>&lt;/p>
+&lt;/div>&lt;p>&lt;em>Credit for this shader goes to &lt;a href="http://blog.dalton.gd/quick-outline-ue4/">http://blog.dalton.gd/quick-outline-ue4/&lt;/a> .&lt;/em>&lt;/p>
 &lt;p>That&amp;rsquo;s it!&lt;/p>
 &lt;h1 id="shortcomings">
 &lt;a href="#shortcomings" class="anchor">

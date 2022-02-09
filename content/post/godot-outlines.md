@@ -113,6 +113,7 @@ func add_outline(node: MeshInstance3D):
 	# 0 disables all duplicate flags - we only want to duplicate the visuals
 	var copy = node.duplicate(0)
 	copy.set_script(OutlineCopy)
+	copy.original = node
 	outline_scene.add_child(copy)
 	node.set_meta("outline_object", copy)
 
@@ -128,7 +129,7 @@ We should now have a viewport that renders the depth buffer only for objects tha
 
 # Step 2: Outline
 
-Now that we have a depth buffer isolated to objects that are outlined, we can just apply a post-process outline. We just run dead-simple edge detection on said depth buffer, compare, and if the "edge value" falls above some threshold then we output a fixed color instead of the scene color.
+Now that we have a depth buffer isolated to objects that are outlined, we can just apply a post-process outline. We run dead-simple edge detection on said depth buffer, compare, and if the "edge value" falls above some threshold then we output a fixed color instead of the scene color.
 
 Just add a shader material to `GameViewportContainer` with the following shader:
 
@@ -157,7 +158,7 @@ void fragment() {
 }
 ```
 
-_Credit for this shader goes to http://blog.dalton.gd/quick-outline-ue4/_
+_Credit for this shader goes to http://blog.dalton.gd/quick-outline-ue4/ ._
 
 That's it!
 

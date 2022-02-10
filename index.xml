@@ -1,4 +1,250 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Jazzfool's Blog</title><link>/</link><description>Recent content on Jazzfool's Blog</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 09 Feb 2022 13:13:22 +1100</lastBuildDate><atom:link href="/index.xml" rel="self" type="application/rss+xml"/><item><title>3D Outlines in Godot</title><link>/post/godot-outlines/</link><pubDate>Wed, 09 Feb 2022 13:13:22 +1100</pubDate><guid>/post/godot-outlines/</guid><description>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Jazzfool's Blog</title><link>/</link><description>Recent content on Jazzfool's Blog</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Thu, 10 Feb 2022 13:02:00 +1100</lastBuildDate><atom:link href="/index.xml" rel="self" type="application/rss+xml"/><item><title>3D Outlines in Godot, Part 2</title><link>/post/godot-outlines-pt2/</link><pubDate>Thu, 10 Feb 2022 13:02:00 +1100</pubDate><guid>/post/godot-outlines-pt2/</guid><description>
+&lt;p>My &lt;a href="https://jazzfool.github.io/post/godot-outlines/">previous post&lt;/a> explained how to implement 3D outlines in Godot using post-processing on top of a custom depth buffer. This works, but is an ugly solution which doesn&amp;rsquo;t look good with large outline widths, and was locked to a single outline color and width globally. It also lacked anti-aliasing as it was a post-process pass presumably running after FXAA.&lt;/p>
+&lt;p>This new method solves these issues, and is also more performant.&lt;/p>
+&lt;p>&lt;img loading="lazy" src="/static/godot-outline-2.png" alt="Godot outlines screenshot" width=840 height="582" />&lt;/p>
+&lt;h2 id="step-1-stencil">
+&lt;a href="#step-1-stencil" class="anchor">
+&lt;svg class="icon" aria-hidden="true" focusable="false" height="16" version="1.1" viewBox="0 0 16 16" width="16">
+&lt;path fill-rule="evenodd"
+d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z">
+&lt;/path>
+&lt;/svg>
+&lt;/a>
+Step 1: Stencil
+&lt;/h2>
+&lt;p>This new version is based on &lt;a href="https://github.com/chrisnolet/QuickOutline">QuickOutline&lt;/a>, which is a hybrid method of screen-space masking and world-space vertex inflation. We first draw a second version of the mesh ignoring depth, inflate it to act as an outline, and mask out the inside of the mesh with a stencil buffer. This means that we can draw the outline differently for each object, and only need 1 texture sample to mask out the outline.&lt;/p>
+&lt;p>This solution is also far less invasive in the scene, and works with visual layers to cull out objects we don&amp;rsquo;t want to stencil.&lt;/p>
+&lt;p>This is the top-level scene tree you need to set up:&lt;/p>
+&lt;p>&lt;img loading="lazy" src="/static/godot-outline-2-scene-tree.png" alt="Godot scene tree" width=343 height="163" />&lt;/p>
+&lt;p>Where &lt;code>Node3D&lt;/code> is your main scene.&lt;/p>
+&lt;p>The &lt;code>Node2D&lt;/code> has the following script:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-python" data-lang="python">&lt;span class="c1"># MainScene.gd&lt;/span>
+&lt;span class="n">class_name&lt;/span> &lt;span class="n">MainScene&lt;/span>
+&lt;span class="n">extends&lt;/span> &lt;span class="n">Node2D&lt;/span>
+&lt;span class="nd">@onready&lt;/span> &lt;span class="n">var&lt;/span> &lt;span class="n">game_camera&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">Camera3D&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">$&lt;/span>&lt;span class="n">Node3D&lt;/span>&lt;span class="o">/&lt;/span>&lt;span class="n">Camera3D&lt;/span>
+&lt;span class="nd">@onready&lt;/span> &lt;span class="n">var&lt;/span> &lt;span class="n">game_scene&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">GameScene&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">$&lt;/span>&lt;span class="n">Node3D&lt;/span>
+&lt;span class="nd">@onready&lt;/span> &lt;span class="n">var&lt;/span> &lt;span class="n">stencil_viewport&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">SubViewport&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">$&lt;/span>&lt;span class="n">StencilViewport&lt;/span>
+&lt;span class="nd">@onready&lt;/span> &lt;span class="n">var&lt;/span> &lt;span class="n">stencil_camera&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">Camera3D&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="err">$&lt;/span>&lt;span class="n">StencilViewport&lt;/span>&lt;span class="o">/&lt;/span>&lt;span class="n">Camera3D&lt;/span>
+&lt;span class="n">func&lt;/span> &lt;span class="n">_process&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">delta&lt;/span>&lt;span class="p">):&lt;/span>
+&lt;span class="n">game_scene&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">main_scene&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="bp">self&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">viewport&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="n">get_viewport&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="n">stencil_viewport&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">size&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="n">viewport&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">size&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="n">stencil_viewport&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">size&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">viewport&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">size&lt;/span>
+&lt;span class="n">stencil_camera&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">fov&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">game_camera&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">fov&lt;/span>
+&lt;span class="n">stencil_camera&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">global_transform&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">game_camera&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">global_transform&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>This just syncs up the cameras and re-exports the viewport.&lt;/p>
+&lt;p>On the &lt;code>StencilViewport&lt;/code>, set &lt;code>Rendering &amp;gt; Debug Draw&lt;/code> to &lt;code>Wireframe&lt;/code>. Basically, we need to render any non-zero color to the viewport, and wireframe will do that.&lt;/p>
+&lt;h2 id="step-2-outline">
+&lt;a href="#step-2-outline" class="anchor">
+&lt;svg class="icon" aria-hidden="true" focusable="false" height="16" version="1.1" viewBox="0 0 16 16" width="16">
+&lt;path fill-rule="evenodd"
+d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z">
+&lt;/path>
+&lt;/svg>
+&lt;/a>
+Step 2: Outline
+&lt;/h2>
+&lt;p>This version is also programatically a lot simpler. We can make it so that outlining a mesh simply involves adding/removing a child node. That child node can just be an empty &lt;code>Node3D&lt;/code> scene with the following script attached to the root:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-python" data-lang="python">&lt;span class="c1"># Outline.gd&lt;/span>
+&lt;span class="n">extends&lt;/span> &lt;span class="n">Node3D&lt;/span>
+&lt;span class="nd">@export&lt;/span> &lt;span class="n">var&lt;/span> &lt;span class="n">width&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="nb">float&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="mf">5.0&lt;/span>
+&lt;span class="nd">@export&lt;/span> &lt;span class="n">var&lt;/span> &lt;span class="n">color&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">Color&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">Color&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">RED&lt;/span>
+&lt;span class="n">const&lt;/span> &lt;span class="n">shader&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">preload&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;res://outline.gdshader&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">func&lt;/span> &lt;span class="n">_enter_tree&lt;/span>&lt;span class="p">():&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">mesh&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">MeshInstance3D&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">get_parent&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">mesh&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_layer_mask_value&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">true&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">surf&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">SurfaceTool&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">surf&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">begin&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">Mesh&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">PRIMITIVE_TRIANGLES&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">seen&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">{}&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">i&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="mi">0&lt;/span>
+&lt;span class="k">for&lt;/span> &lt;span class="n">face&lt;/span> &lt;span class="ow">in&lt;/span> &lt;span class="n">mesh&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">mesh&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">get_faces&lt;/span>&lt;span class="p">():&lt;/span>
+&lt;span class="k">if&lt;/span> &lt;span class="err">!&lt;/span>&lt;span class="n">seen&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">has&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">face&lt;/span>&lt;span class="p">):&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">index&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">i&lt;/span>
+&lt;span class="n">i&lt;/span> &lt;span class="o">+=&lt;/span> &lt;span class="mi">1&lt;/span>
+&lt;span class="n">seen&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">face&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">index&lt;/span>
+&lt;span class="n">surf&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">add_vertex&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">face&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">surf&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">add_index&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">index&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="k">else&lt;/span>&lt;span class="p">:&lt;/span>
+&lt;span class="n">surf&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">add_index&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">seen&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="n">face&lt;/span>&lt;span class="p">])&lt;/span>
+&lt;span class="n">surf&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">generate_normals&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">material&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">ShaderMaterial&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">material&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">shader&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">shader&lt;/span>
+&lt;span class="n">material&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_shader_param&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;stencil&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">get_tree&lt;/span>&lt;span class="p">()&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">current_scene&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">stencil_viewport&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">get_texture&lt;/span>&lt;span class="p">())&lt;/span>
+&lt;span class="n">material&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_shader_param&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;width&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">width&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">material&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_shader_param&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;color&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">color&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">outline&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="n">MeshInstance3D&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">new&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">outline&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">mesh&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">surf&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">commit&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">outline&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">material_override&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">material&lt;/span>
+&lt;span class="n">add_child&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">outline&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;span class="n">func&lt;/span> &lt;span class="n">_exit_tree&lt;/span>&lt;span class="p">():&lt;/span>
+&lt;span class="n">var&lt;/span> &lt;span class="n">mesh&lt;/span>&lt;span class="p">:&lt;/span> &lt;span class="n">MeshInstance3D&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">get_parent&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;span class="n">mesh&lt;/span>&lt;span class="o">.&lt;/span>&lt;span class="n">set_layer_mask_value&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">false&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>The main interesting bit here is the smooth normal generation. Since we&amp;rsquo;re offsetting the faces by the normals, if they&amp;rsquo;re disjoint (i.e. flat shaded), the outline will have gaps, so we just merge the vertices and output a new mesh with the outline material.&lt;/p>
+&lt;p>Now the outline shader itself:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-glsl" data-lang="glsl">&lt;span class="c1">// outline.gdshader&lt;/span>
+&lt;span class="n">shader_type&lt;/span> &lt;span class="n">spatial&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">render_mode&lt;/span> &lt;span class="n">unshaded&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">cull_disabled&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">depth_draw_never&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">depth_test_disabled&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">skip_vertex_transform&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">uniform&lt;/span> &lt;span class="k">sampler2D&lt;/span> &lt;span class="n">stencil&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">uniform&lt;/span> &lt;span class="k">float&lt;/span> &lt;span class="n">width&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="mf">20.0&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">uniform&lt;/span> &lt;span class="k">vec4&lt;/span> &lt;span class="n">color&lt;/span> &lt;span class="o">:&lt;/span> &lt;span class="n">hint_color&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">vec4&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mf">0.0&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">1.0&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">0.0&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">1.0&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="k">varying&lt;/span> &lt;span class="k">vec2&lt;/span> &lt;span class="n">uv_offset&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">const&lt;/span> &lt;span class="k">float&lt;/span> &lt;span class="n">UV_BIAS&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="mf">0.00087&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">void&lt;/span> &lt;span class="n">vertex&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="c1">// neutralize scaling from the transform matrix.&lt;/span>
+&lt;span class="c1">// this ensures the normals are scaled uniformally, even for stretched meshes&lt;/span>
+&lt;span class="n">mat4&lt;/span> &lt;span class="n">noscale&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">MODELVIEW_MATRIX&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">noscale&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mo">0&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">normalize&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">noscale&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mo">0&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="n">noscale&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">normalize&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">noscale&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="n">noscale&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">]&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">normalize&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">noscale&lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="mi">2&lt;/span>&lt;span class="p">]);&lt;/span>
+&lt;span class="n">VERTEX&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="n">MODELVIEW_MATRIX&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="k">vec4&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">VERTEX&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">1.0&lt;/span>&lt;span class="p">)).&lt;/span>&lt;span class="n">xyz&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">NORMAL&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">normalize&lt;/span>&lt;span class="p">((&lt;/span>&lt;span class="n">noscale&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="k">vec4&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">NORMAL&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">0.0&lt;/span>&lt;span class="p">)).&lt;/span>&lt;span class="n">xyz&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="k">vec4&lt;/span> &lt;span class="n">a&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">vec4&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">VERTEX&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">1.0&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="c1">// inflate vertex by normal * width (adjusted for viewing distance)&lt;/span>
+&lt;span class="n">VERTEX&lt;/span> &lt;span class="o">+=&lt;/span> &lt;span class="n">NORMAL&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="o">-&lt;/span>&lt;span class="n">VERTEX&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">z&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="n">width&lt;/span> &lt;span class="o">/&lt;/span> &lt;span class="mf">1000.0&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="k">vec4&lt;/span> &lt;span class="n">b&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">vec4&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">VERTEX&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="mf">1.0&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="n">a&lt;/span> &lt;span class="o">*=&lt;/span> &lt;span class="n">PROJECTION_MATRIX&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">b&lt;/span> &lt;span class="o">*=&lt;/span> &lt;span class="n">PROJECTION_MATRIX&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">a&lt;/span> &lt;span class="o">/=&lt;/span> &lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">w&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">b&lt;/span> &lt;span class="o">/=&lt;/span> &lt;span class="n">b&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">w&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="n">uv_offset&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">normalize&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">xy&lt;/span> &lt;span class="o">-&lt;/span> &lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">xy&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">void&lt;/span> &lt;span class="n">fragment&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="n">ALBEDO&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="n">color&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">rgb&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="c1">// stencil out the inside&lt;/span>
+&lt;span class="n">ALPHA&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">float&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">!&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">texture&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">stencil&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="n">SCREEN_UV&lt;/span> &lt;span class="o">+&lt;/span> &lt;span class="n">uv_offset&lt;/span> &lt;span class="o">*&lt;/span> &lt;span class="n">UV_BIAS&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="n">r&lt;/span> &lt;span class="o">&amp;gt;&lt;/span> &lt;span class="mf">0.0&lt;/span>&lt;span class="p">));&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>That&amp;rsquo;s all. Adding an outline just means instancing the &lt;code>Outline&lt;/code> scene as a child of whatever mesh you wish to outline. If you add this directly in the editor, you&amp;rsquo;ll need to change &lt;code>Outline.gd&lt;/code> so that it waits after &lt;code>MainScene._ready&lt;/code> is called.&lt;/p>
+&lt;h2 id="shortcomings">
+&lt;a href="#shortcomings" class="anchor">
+&lt;svg class="icon" aria-hidden="true" focusable="false" height="16" version="1.1" viewBox="0 0 16 16" width="16">
+&lt;path fill-rule="evenodd"
+d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z">
+&lt;/path>
+&lt;/svg>
+&lt;/a>
+Shortcomings
+&lt;/h2>
+&lt;p>In terms of functionality, there&amp;rsquo;s not much lacking. But once again, Godot&amp;rsquo;s neglect towards advanced 3D rendering means that this solution is wasteful for no good reason. The viewport &amp;ldquo;stencil pass&amp;rdquo; is just a RGBA8 full color render pass with wireframe mode, where non-zero values are considered stenciled out. Depth testing is still taking place in this pass, for no reason whatsoever. As a result, both GPU memory and GPU time is being wasted.&lt;/p></description></item><item><title>3D Outlines in Godot</title><link>/post/godot-outlines/</link><pubDate>Wed, 09 Feb 2022 13:13:22 +1100</pubDate><guid>/post/godot-outlines/</guid><description>
 &lt;p>&lt;em>This guide was written for Godot 4.0 (Alpha 1 at the time of writing), but does not use any 4.0-specific features&lt;/em>&lt;/p>
 &lt;p>Outlines are a handy visual tool in games to show focus on objects. Unfortunately for Godot, I haven&amp;rsquo;t seen much content on how to make nice looking outlines for 3D objects.&lt;/p>
 &lt;p>This guide will show you how to make outlines that look like this:&lt;/p>

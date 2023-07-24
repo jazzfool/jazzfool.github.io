@@ -1,7 +1,7 @@
 baseurl = ""
 languageCode = "en-us"
 title = "Jazzfool's Blog"
-theme = "hugo-tania"
+theme = "Hugo-Octopress"
 paginate = 6
 
 disqusShortname = ""
@@ -17,7 +17,7 @@ disqusShortname = ""
   # Default to true
   enableFootnotes = false
   siteName = "Jazzfool's Blog"
-  siteDesc = "A fool's thoughts"
+  siteDesc = "A sinkhole for my projects"
   author = "jazzfool"
 
   # Limit how many categories filter show above search input.

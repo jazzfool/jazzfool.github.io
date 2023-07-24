@@ -1,3 +1,6 @@
 [submodule "hugo-tania"]
 path = "themes/hugo-tania"
 url = "https://github.com/WingLim/hugo-tania"
+[submodule "themes/Hugo-Octopress"]
+	path = themes/Hugo-Octopress
+	url = https://github.com/parsiya/Hugo-Octopress/

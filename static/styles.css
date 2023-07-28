@@ -7,7 +7,7 @@ body {
 }
 
 body article * {
-  font-family: "Fira Sans" !important;
+  font-family: "Fira Sans";
 }
 
 aside.sidebar {

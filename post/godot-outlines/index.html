@@ -1,209 +1,107 @@
-<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=en lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,minimum-scale=1,maximum-scale=1"><link href=/css/fonts.css rel=stylesheet type=text/css><title>3D Outlines in Godot</title><link rel=stylesheet href=/css/hugo-octopress.css><link rel=stylesheet href=/css/fork-awesome.min.css><link href=/favicon.png rel=icon><meta name=description content><meta name=keywords content><meta name=author content="jazzfool"><meta name=generator content="Hugo 0.85.0"></head><body><header role=banner><hgroup><h1><a href=/>Jazzfool's Blog</a></h1><h2></h2></hgroup></header><nav role=navigation><fieldset class=mobile-nav><select onchange="location=this.value"><option value>Navigate…</option></select></fieldset><ul class=main-navigation></ul><ul class=subscription></ul></nav><div id=main><div id=content><div><article class=hentry role=article><header><p class=meta>Feb 9, 2022
-- 5 minute read</p><h1 class=entry-title>3D Outlines in Godot</h1></header><div class=entry-content><p><em>This guide was written for Godot 4.0 (Alpha 1 at the time of writing), but does not use any 4.0-specific features</em></p><p>Outlines are a handy visual tool in games to show focus on objects. Unfortunately for Godot, I haven&rsquo;t seen much content on how to make nice looking outlines for 3D objects.</p><p>This guide will show you how to make outlines that look like this:</p><p><img src=/static/godot-outline.png alt="Godot outlines screenshot"></p><h1 id=step-1-isolating-depth>Step 1: Isolating depth</h1><p>Firstly, we need to isolate the depth for the objects we want to outline. To do this, we need to get our hands dirty with <code>SubViewport</code> (<code>Viewport</code> pre-4.0).</p><p>This is the scene tree you need to set up:</p><p><img src=/static/godot-outline-scene-tree.png alt="Godot scene tree"></p><p><em>(Note: <code>OutlineViewport</code> and <code>GameViewport</code> are of type <code>SubViewport</code>, and <code>GameViewportContainer</code> is of type <code>SubViewportContainer</code>)</em></p><p>The <code>Node3D</code> under <code>GameViewport</code> is where your entire game scene will go. Objects that we want to outline will be duplicated under <code>OutlineViewport/Node3D</code> as siblings of <code>Camera3D</code>. Finally, the script attached to <code>Node2D</code> will be managing everything.</p><p>Viewports do not have a built-in way to render depth-only, so the only way to do this currently is to put a depth-visualising material on all the objects in <code>OutlineViewport</code>.</p><p>Here is the shader code for that material:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
-</span><span class=lnt> 2
-</span><span class=lnt> 3
-</span><span class=lnt> 4
-</span><span class=lnt> 5
-</span><span class=lnt> 6
-</span><span class=lnt> 7
-</span><span class=lnt> 8
-</span><span class=lnt> 9
-</span><span class=lnt>10
-</span><span class=lnt>11
-</span><span class=lnt>12
-</span><span class=lnt>13
-</span><span class=lnt>14
-</span><span class=lnt>15
-</span><span class=lnt>16
-</span><span class=lnt>17
-</span><span class=lnt>18
-</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-glsl data-lang=glsl><span class=c1>// depth_only.gdshader</span>
-<span class=n>shader_type</span> <span class=n>spatial</span><span class=p>;</span>
-<span class=n>render_mode</span> <span class=n>unshaded</span><span class=p>,</span> <span class=n>skip_vertex_transform</span><span class=p>;</span>
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=en lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,minimum-scale=1,maximum-scale=1"><link href=/css/fonts.css rel=stylesheet type=text/css><title>3D Outlines in Godot</title><link rel=stylesheet href=/css/hugo-octopress.css><link rel=stylesheet href=styles.css><link rel=stylesheet href=/css/fork-awesome.min.css><link href=/favicon.png rel=icon><meta name=description content><meta name=keywords content><meta name=author content="jazzfool"><meta name=generator content="Hugo 0.85.0"></head><body><header role=banner><hgroup><h1><a href=/>$ jazzfool.github.io</a></h1><h2></h2></hgroup></header><nav role=navigation><fieldset class=mobile-nav><select onchange="location=this.value"><option value>Navigate…</option><option value=/>» Articles</option><option value=https://github.com/jazzfool>» GitHub</option></select></fieldset><ul class=main-navigation><li><a href=/ title=Articles>Articles</a></li><li><a href=https://github.com/jazzfool title=GitHub target=_blank rel="noopener noreferrer">GitHub</a></li></ul><ul class=subscription></ul></nav><div id=main><div id=content><div><article class=hentry role=article><header><p class=meta>Feb 9, 2022
+- 5 minute read</p><h1 class=entry-title>3D Outlines in Godot</h1></header><div class=entry-content><nav id=TableOfContents><ul><li><a href=#step-1-isolating-depth>Step 1: Isolating depth</a></li><li><a href=#step-2-outline>Step 2: Outline</a></li><li><a href=#shortcomings>Shortcomings</a></li></ul></nav><p><em>This guide was written for Godot 4.0 (Alpha 1 at the time of writing), but does not use any 4.0-specific features</em></p><p>Outlines are a handy visual tool in games to show focus on objects. Unfortunately for Godot, I haven&rsquo;t seen much content on how to make nice looking outlines for 3D objects.</p><p>This guide will show you how to make outlines that look like this:</p><p><img src=/static/godot-outline.png alt="Godot outlines screenshot"></p><h1 id=step-1-isolating-depth>Step 1: Isolating depth</h1><p>Firstly, we need to isolate the depth for the objects we want to outline. To do this, we need to get our hands dirty with <code>SubViewport</code> (<code>Viewport</code> pre-4.0).</p><p>This is the scene tree you need to set up:</p><p><img src=/static/godot-outline-scene-tree.png alt="Godot scene tree"></p><p><em>(Note: <code>OutlineViewport</code> and <code>GameViewport</code> are of type <code>SubViewport</code>, and <code>GameViewportContainer</code> is of type <code>SubViewportContainer</code>)</em></p><p>The <code>Node3D</code> under <code>GameViewport</code> is where your entire game scene will go. Objects that we want to outline will be duplicated under <code>OutlineViewport/Node3D</code> as siblings of <code>Camera3D</code>. Finally, the script attached to <code>Node2D</code> will be managing everything.</p><p>Viewports do not have a built-in way to render depth-only, so the only way to do this currently is to put a depth-visualising material on all the objects in <code>OutlineViewport</code>.</p><p>Here is the shader code for that material:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-glsl data-lang=glsl><span style=color:#586e75>// depth_only.gdshader</span>
+shader_type spatial;
+render_mode unshaded, skip_vertex_transform;
 
-<span class=k>varying</span> <span class=k>float</span> <span class=n>depth</span><span class=p>;</span>
+<span style=color:#719e07>varying</span> <span style=color:#719e07>float</span> depth;
 
-<span class=k>void</span> <span class=n>vertex</span><span class=p>()</span> <span class=p>{</span>
-	<span class=n>VERTEX</span> <span class=o>=</span> <span class=p>(</span><span class=n>MODELVIEW_MATRIX</span> <span class=o>*</span> <span class=k>vec4</span><span class=p>(</span><span class=n>VERTEX</span><span class=p>,</span> <span class=mf>1.0</span><span class=p>)).</span><span class=n>xyz</span><span class=p>;</span>
-	<span class=n>NORMAL</span> <span class=o>=</span> <span class=p>(</span><span class=n>MODELVIEW_MATRIX</span> <span class=o>*</span> <span class=k>vec4</span><span class=p>(</span><span class=n>VERTEX</span><span class=p>,</span> <span class=mf>0.0</span><span class=p>)).</span><span class=n>xyz</span><span class=p>;</span>
+<span style=color:#719e07>void</span> vertex() {
+	VERTEX <span style=color:#719e07>=</span> (MODELVIEW_MATRIX <span style=color:#719e07>*</span> <span style=color:#719e07>vec4</span>(VERTEX, <span style=color:#2aa198>1.0</span>)).xyz;
+	NORMAL <span style=color:#719e07>=</span> (MODELVIEW_MATRIX <span style=color:#719e07>*</span> <span style=color:#719e07>vec4</span>(VERTEX, <span style=color:#2aa198>0.0</span>)).xyz;
 
-	<span class=k>vec4</span> <span class=n>ndc</span> <span class=o>=</span> <span class=n>PROJECTION_MATRIX</span> <span class=o>*</span> <span class=k>vec4</span><span class=p>(</span><span class=n>VERTEX</span><span class=p>,</span> <span class=mf>1.0</span><span class=p>);</span>
-	<span class=n>ndc</span><span class=p>.</span><span class=n>xyz</span> <span class=o>/=</span> <span class=n>ndc</span><span class=p>.</span><span class=n>w</span><span class=p>;</span>
-	<span class=n>depth</span> <span class=o>=</span> <span class=n>ndc</span><span class=p>.</span><span class=n>z</span><span class=p>;</span>
-<span class=p>}</span>
+	<span style=color:#719e07>vec4</span> ndc <span style=color:#719e07>=</span> PROJECTION_MATRIX <span style=color:#719e07>*</span> <span style=color:#719e07>vec4</span>(VERTEX, <span style=color:#2aa198>1.0</span>);
+	ndc.xyz <span style=color:#719e07>/=</span> ndc.w;
+	depth <span style=color:#719e07>=</span> ndc.z;
+}
 
-<span class=k>void</span> <span class=n>fragment</span><span class=p>()</span> <span class=p>{</span>
-	<span class=n>ALBEDO</span> <span class=o>=</span> <span class=k>vec3</span><span class=p>(</span><span class=n>depth</span><span class=p>);</span>
-<span class=p>}</span>
-</code></pre></td></tr></table></div></div><p>Here is the script we&rsquo;ll attach to objects inside <code>OutlineViewport</code>:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
-</span><span class=lnt> 2
-</span><span class=lnt> 3
-</span><span class=lnt> 4
-</span><span class=lnt> 5
-</span><span class=lnt> 6
-</span><span class=lnt> 7
-</span><span class=lnt> 8
-</span><span class=lnt> 9
-</span><span class=lnt>10
-</span><span class=lnt>11
-</span><span class=lnt>12
-</span><span class=lnt>13
-</span><span class=lnt>14
-</span><span class=lnt>15
-</span><span class=lnt>16
-</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-python data-lang=python><span class=c1># OutlineCopy.gd</span>
-<span class=n>class_name</span> <span class=n>OutlineCopy</span>
-<span class=n>extends</span> <span class=n>MeshInstance3D</span>
+<span style=color:#719e07>void</span> fragment() {
+	ALBEDO <span style=color:#719e07>=</span> <span style=color:#719e07>vec3</span>(depth);
+}
+</code></pre></div><p>Here is the script we&rsquo;ll attach to objects inside <code>OutlineViewport</code>:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#586e75># OutlineCopy.gd</span>
+class_name OutlineCopy
+extends MeshInstance3D
 
-<span class=n>var</span> <span class=n>original</span><span class=p>:</span> <span class=n>Node3D</span> <span class=o>=</span> <span class=n>null</span><span class=p>;</span>
+var original: Node3D <span style=color:#719e07>=</span> null;
 
-<span class=n>const</span> <span class=n>depth_only</span> <span class=o>=</span> <span class=n>preload</span><span class=p>(</span><span class=s2>&#34;res://depth_only.gdshader&#34;</span><span class=p>)</span>
+const depth_only <span style=color:#719e07>=</span> preload(<span style=color:#2aa198>&#34;res://depth_only.gdshader&#34;</span>)
 
-<span class=n>func</span> <span class=n>_ready</span><span class=p>():</span>
-	<span class=n>var</span> <span class=n>material</span> <span class=o>:=</span> <span class=n>ShaderMaterial</span><span class=o>.</span><span class=n>new</span><span class=p>()</span>
-	<span class=n>material</span><span class=o>.</span><span class=n>shader</span> <span class=o>=</span> <span class=n>depth_only</span>
-	<span class=n>material_override</span> <span class=o>=</span> <span class=n>material</span>
+func _ready():
+	var material <span style=color:#719e07>:=</span> ShaderMaterial<span style=color:#719e07>.</span>new()
+	material<span style=color:#719e07>.</span>shader <span style=color:#719e07>=</span> depth_only
+	material_override <span style=color:#719e07>=</span> material
 
-<span class=n>func</span> <span class=n>_process</span><span class=p>(</span><span class=n>delta</span><span class=p>):</span>
-	<span class=k>if</span> <span class=n>is_instance_valid</span><span class=p>(</span><span class=n>original</span><span class=p>):</span>
-		<span class=n>global_transform</span> <span class=o>=</span> <span class=n>original</span><span class=o>.</span><span class=n>global_transform</span>
-</code></pre></td></tr></table></div></div><p>The above will only replicate the global transform, but you may want to replicate other properties, for example the mesh if it changes at runtime.</p><p>Finally, this is the script we&rsquo;ll attach to the root <code>Node2D</code>:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
-</span><span class=lnt> 2
-</span><span class=lnt> 3
-</span><span class=lnt> 4
-</span><span class=lnt> 5
-</span><span class=lnt> 6
-</span><span class=lnt> 7
-</span><span class=lnt> 8
-</span><span class=lnt> 9
-</span><span class=lnt>10
-</span><span class=lnt>11
-</span><span class=lnt>12
-</span><span class=lnt>13
-</span><span class=lnt>14
-</span><span class=lnt>15
-</span><span class=lnt>16
-</span><span class=lnt>17
-</span><span class=lnt>18
-</span><span class=lnt>19
-</span><span class=lnt>20
-</span><span class=lnt>21
-</span><span class=lnt>22
-</span><span class=lnt>23
-</span><span class=lnt>24
-</span><span class=lnt>25
-</span><span class=lnt>26
-</span><span class=lnt>27
-</span><span class=lnt>28
-</span><span class=lnt>29
-</span><span class=lnt>30
-</span><span class=lnt>31
-</span><span class=lnt>32
-</span><span class=lnt>33
-</span><span class=lnt>34
-</span><span class=lnt>35
-</span><span class=lnt>36
-</span><span class=lnt>37
-</span><span class=lnt>38
-</span><span class=lnt>39
-</span><span class=lnt>40
-</span><span class=lnt>41
-</span><span class=lnt>42
-</span><span class=lnt>43
-</span><span class=lnt>44
-</span><span class=lnt>45
-</span><span class=lnt>46
-</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-python data-lang=python><span class=c1># Root.gd</span>
-<span class=n>extends</span> <span class=n>Node2D</span>
+func _process(delta):
+	<span style=color:#719e07>if</span> is_instance_valid(original):
+		global_transform <span style=color:#719e07>=</span> original<span style=color:#719e07>.</span>global_transform
+</code></pre></div><p>The above will only replicate the global transform, but you may want to replicate other properties, for example the mesh if it changes at runtime.</p><p>Finally, this is the script we&rsquo;ll attach to the root <code>Node2D</code>:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#586e75># Root.gd</span>
+extends Node2D
 
-<span class=nd>@onready</span> <span class=n>var</span> <span class=n>game_viewport_container</span><span class=p>:</span> <span class=n>SubViewportContainer</span> <span class=o>=</span> <span class=err>$</span><span class=n>GameViewportContainer</span>
-<span class=nd>@onready</span> <span class=n>var</span> <span class=n>game_viewport</span><span class=p>:</span> <span class=n>SubViewport</span> <span class=o>=</span> <span class=err>$</span><span class=n>GameViewportContainer</span><span class=o>/</span><span class=n>GameViewport</span>
-<span class=nd>@onready</span> <span class=n>var</span> <span class=n>game_camera</span><span class=p>:</span> <span class=n>Camera3D</span> <span class=o>=</span> <span class=err>$</span><span class=n>GameViewportContainer</span><span class=o>/</span><span class=n>GameViewport</span><span class=o>/</span><span class=n>Node3D</span><span class=o>/</span><span class=n>Camera3D</span>
-<span class=nd>@onready</span> <span class=n>var</span> <span class=n>outline_viewport</span><span class=p>:</span> <span class=n>SubViewport</span> <span class=o>=</span> <span class=err>$</span><span class=n>OutlineViewport</span>
-<span class=nd>@onready</span> <span class=n>var</span> <span class=n>outline_camera</span><span class=p>:</span> <span class=n>Camera3D</span> <span class=o>=</span> <span class=err>$</span><span class=n>OutlineViewport</span><span class=o>/</span><span class=n>Node3D</span><span class=o>/</span><span class=n>Camera3D</span>
-<span class=nd>@onready</span> <span class=n>var</span> <span class=n>outline_scene</span><span class=p>:</span> <span class=n>Node3D</span> <span class=o>=</span> <span class=err>$</span><span class=n>OutlineViewport</span><span class=o>/</span><span class=n>Node3D</span>
+<span style=color:#268bd2>@onready</span> var game_viewport_container: SubViewportContainer <span style=color:#719e07>=</span> $GameViewportContainer
+<span style=color:#268bd2>@onready</span> var game_viewport: SubViewport <span style=color:#719e07>=</span> $GameViewportContainer<span style=color:#719e07>/</span>GameViewport
+<span style=color:#268bd2>@onready</span> var game_camera: Camera3D <span style=color:#719e07>=</span> $GameViewportContainer<span style=color:#719e07>/</span>GameViewport<span style=color:#719e07>/</span>Node3D<span style=color:#719e07>/</span>Camera3D
+<span style=color:#268bd2>@onready</span> var outline_viewport: SubViewport <span style=color:#719e07>=</span> $OutlineViewport
+<span style=color:#268bd2>@onready</span> var outline_camera: Camera3D <span style=color:#719e07>=</span> $OutlineViewport<span style=color:#719e07>/</span>Node3D<span style=color:#719e07>/</span>Camera3D
+<span style=color:#268bd2>@onready</span> var outline_scene: Node3D <span style=color:#719e07>=</span> $OutlineViewport<span style=color:#719e07>/</span>Node3D
 
-<span class=n>const</span> <span class=n>OutlineCopy</span> <span class=o>:=</span> <span class=n>preload</span><span class=p>(</span><span class=s2>&#34;res://OutlineCopy.gd&#34;</span><span class=p>)</span>
+const OutlineCopy <span style=color:#719e07>:=</span> preload(<span style=color:#2aa198>&#34;res://OutlineCopy.gd&#34;</span>)
 
-<span class=n>func</span> <span class=n>_ready</span><span class=p>():</span>
-	<span class=n>game_viewport_container</span><span class=o>.</span><span class=n>material</span><span class=o>.</span><span class=n>set_shader_param</span><span class=p>(</span><span class=s2>&#34;outline_viewport_texture&#34;</span><span class=p>,</span> <span class=n>outline_viewport</span><span class=o>.</span><span class=n>get_texture</span><span class=p>())</span>
+func _ready():
+	game_viewport_container<span style=color:#719e07>.</span>material<span style=color:#719e07>.</span>set_shader_param(<span style=color:#2aa198>&#34;outline_viewport_texture&#34;</span>, outline_viewport<span style=color:#719e07>.</span>get_texture())
 
-    <span class=c1># call add_outline on the objects you want here, or anywhere really</span>
+    <span style=color:#586e75># call add_outline on the objects you want here, or anywhere really</span>
 
-<span class=n>func</span> <span class=n>_process</span><span class=p>(</span><span class=n>delta</span><span class=p>):</span>
-    <span class=c1># synchronise viewport size, camera transform, and camera FOV</span>
+func _process(delta):
+    <span style=color:#586e75># synchronise viewport size, camera transform, and camera FOV</span>
 
-	<span class=n>var</span> <span class=n>viewport</span> <span class=o>:=</span> <span class=n>get_viewport</span><span class=p>()</span>
+	var viewport <span style=color:#719e07>:=</span> get_viewport()
 
-	<span class=k>if</span> <span class=n>game_viewport</span><span class=o>.</span><span class=n>size</span> <span class=o>!=</span> <span class=n>viewport</span><span class=o>.</span><span class=n>size</span><span class=p>:</span>
-		<span class=n>game_viewport</span><span class=o>.</span><span class=n>size</span> <span class=o>=</span> <span class=n>viewport</span><span class=o>.</span><span class=n>size</span>
+	<span style=color:#719e07>if</span> game_viewport<span style=color:#719e07>.</span>size <span style=color:#719e07>!=</span> viewport<span style=color:#719e07>.</span>size:
+		game_viewport<span style=color:#719e07>.</span>size <span style=color:#719e07>=</span> viewport<span style=color:#719e07>.</span>size
 
-	<span class=k>if</span> <span class=n>outline_viewport</span><span class=o>.</span><span class=n>size</span> <span class=o>!=</span> <span class=n>game_viewport</span><span class=o>.</span><span class=n>size</span><span class=p>:</span>
-		<span class=n>outline_viewport</span><span class=o>.</span><span class=n>size</span> <span class=o>=</span> <span class=n>game_viewport</span><span class=o>.</span><span class=n>size</span>
+	<span style=color:#719e07>if</span> outline_viewport<span style=color:#719e07>.</span>size <span style=color:#719e07>!=</span> game_viewport<span style=color:#719e07>.</span>size:
+		outline_viewport<span style=color:#719e07>.</span>size <span style=color:#719e07>=</span> game_viewport<span style=color:#719e07>.</span>size
 
-	<span class=n>outline_camera</span><span class=o>.</span><span class=n>fov</span> <span class=o>=</span> <span class=n>game_camera</span><span class=o>.</span><span class=n>fov</span>
-	<span class=n>outline_camera</span><span class=o>.</span><span class=n>global_transform</span> <span class=o>=</span> <span class=n>game_camera</span><span class=o>.</span><span class=n>global_transform</span>
+	outline_camera<span style=color:#719e07>.</span>fov <span style=color:#719e07>=</span> game_camera<span style=color:#719e07>.</span>fov
+	outline_camera<span style=color:#719e07>.</span>global_transform <span style=color:#719e07>=</span> game_camera<span style=color:#719e07>.</span>global_transform
 
-<span class=n>func</span> <span class=n>add_outline</span><span class=p>(</span><span class=n>node</span><span class=p>:</span> <span class=n>MeshInstance3D</span><span class=p>):</span>
-	<span class=k>if</span> <span class=n>is_instance_valid</span><span class=p>(</span><span class=n>node</span><span class=o>.</span><span class=n>get_meta</span><span class=p>(</span><span class=s2>&#34;outline_object&#34;</span><span class=p>)):</span>
-		<span class=c1># object already has an outline</span>
-		<span class=k>return</span>
-	<span class=c1># 0 disables all duplicate flags - we only want to duplicate the visuals</span>
-	<span class=n>var</span> <span class=n>copy</span> <span class=o>=</span> <span class=n>node</span><span class=o>.</span><span class=n>duplicate</span><span class=p>(</span><span class=mi>0</span><span class=p>)</span>
-	<span class=n>copy</span><span class=o>.</span><span class=n>set_script</span><span class=p>(</span><span class=n>OutlineCopy</span><span class=p>)</span>
-	<span class=n>copy</span><span class=o>.</span><span class=n>original</span> <span class=o>=</span> <span class=n>node</span>
-	<span class=n>outline_scene</span><span class=o>.</span><span class=n>add_child</span><span class=p>(</span><span class=n>copy</span><span class=p>)</span>
-	<span class=n>node</span><span class=o>.</span><span class=n>set_meta</span><span class=p>(</span><span class=s2>&#34;outline_object&#34;</span><span class=p>,</span> <span class=n>copy</span><span class=p>)</span>
+func add_outline(node: MeshInstance3D):
+	<span style=color:#719e07>if</span> is_instance_valid(node<span style=color:#719e07>.</span>get_meta(<span style=color:#2aa198>&#34;outline_object&#34;</span>)):
+		<span style=color:#586e75># object already has an outline</span>
+		<span style=color:#719e07>return</span>
+	<span style=color:#586e75># 0 disables all duplicate flags - we only want to duplicate the visuals</span>
+	var copy <span style=color:#719e07>=</span> node<span style=color:#719e07>.</span>duplicate(<span style=color:#2aa198>0</span>)
+	copy<span style=color:#719e07>.</span>set_script(OutlineCopy)
+	copy<span style=color:#719e07>.</span>original <span style=color:#719e07>=</span> node
+	outline_scene<span style=color:#719e07>.</span>add_child(copy)
+	node<span style=color:#719e07>.</span>set_meta(<span style=color:#2aa198>&#34;outline_object&#34;</span>, copy)
 
-<span class=n>func</span> <span class=n>remove_outline</span><span class=p>(</span><span class=n>node</span><span class=p>:</span> <span class=n>MeshInstance3D</span><span class=p>):</span>
-	<span class=n>var</span> <span class=n>outline</span><span class=p>:</span> <span class=n>MeshInstance3D</span> <span class=o>=</span> <span class=n>node</span><span class=o>.</span><span class=n>get_meta</span><span class=p>(</span><span class=s2>&#34;outline_object&#34;</span><span class=p>)</span>
-	<span class=k>if</span> <span class=n>is_instance_valid</span><span class=p>(</span><span class=n>outline</span><span class=p>):</span>
-		<span class=n>outline</span><span class=o>.</span><span class=n>queue_free</span><span class=p>()</span>
-</code></pre></td></tr></table></div></div><p>You don&rsquo;t have to add objects to <code>OutlineViewport</code> through code as it can also be done manually, but just make sure the material is <code>depth_only.gdshader</code> and the script attached is <code>OutlineCopy.gd</code>.</p><p>We should now have a viewport that renders the depth buffer only for objects that we tell it to.</p><h1 id=step-2-outline>Step 2: Outline</h1><p>Now that we have a depth buffer isolated to objects that are outlined, we can just apply a post-process outline. We run dead-simple edge detection on said depth buffer, compare, and if the &ldquo;edge value&rdquo; falls above some threshold then we output a fixed color instead of the scene color.</p><p>Just add a shader material to <code>GameViewportContainer</code> with the following shader:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre class=chroma><code><span class=lnt> 1
-</span><span class=lnt> 2
-</span><span class=lnt> 3
-</span><span class=lnt> 4
-</span><span class=lnt> 5
-</span><span class=lnt> 6
-</span><span class=lnt> 7
-</span><span class=lnt> 8
-</span><span class=lnt> 9
-</span><span class=lnt>10
-</span><span class=lnt>11
-</span><span class=lnt>12
-</span><span class=lnt>13
-</span><span class=lnt>14
-</span><span class=lnt>15
-</span><span class=lnt>16
-</span><span class=lnt>17
-</span><span class=lnt>18
-</span><span class=lnt>19
-</span><span class=lnt>20
-</span><span class=lnt>21
-</span><span class=lnt>22
-</span></code></pre></td><td class=lntd><pre class=chroma><code class=language-glsl data-lang=glsl><span class=c1>// post_outline.gdshader</span>
-<span class=n>shader_type</span> <span class=n>canvas_item</span><span class=p>;</span>
+func remove_outline(node: MeshInstance3D):
+	var outline: MeshInstance3D <span style=color:#719e07>=</span> node<span style=color:#719e07>.</span>get_meta(<span style=color:#2aa198>&#34;outline_object&#34;</span>)
+	<span style=color:#719e07>if</span> is_instance_valid(outline):
+		outline<span style=color:#719e07>.</span>queue_free()
+</code></pre></div><p>You don&rsquo;t have to add objects to <code>OutlineViewport</code> through code as it can also be done manually, but just make sure the material is <code>depth_only.gdshader</code> and the script attached is <code>OutlineCopy.gd</code>.</p><p>We should now have a viewport that renders the depth buffer only for objects that we tell it to.</p><h1 id=step-2-outline>Step 2: Outline</h1><p>Now that we have a depth buffer isolated to objects that are outlined, we can just apply a post-process outline. We run dead-simple edge detection on said depth buffer, compare, and if the &ldquo;edge value&rdquo; falls above some threshold then we output a fixed color instead of the scene color.</p><p>Just add a shader material to <code>GameViewportContainer</code> with the following shader:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-glsl data-lang=glsl><span style=color:#586e75>// post_outline.gdshader</span>
+shader_type canvas_item;
 
-<span class=k>uniform</span> <span class=k>sampler2D</span> <span class=n>outline_viewport_texture</span><span class=p>;</span>
-<span class=k>uniform</span> <span class=k>vec4</span> <span class=n>outline_color</span> <span class=o>:</span> <span class=n>hint_color</span> <span class=o>=</span> <span class=k>vec4</span><span class=p>(</span><span class=mi>1</span><span class=p>,</span> <span class=mo>0</span><span class=p>,</span> <span class=mo>0</span><span class=p>,</span> <span class=mi>1</span><span class=p>);</span>
-<span class=k>uniform</span> <span class=k>float</span> <span class=n>outline_thickness</span> <span class=o>=</span> <span class=mf>2.0</span><span class=p>;</span>
+<span style=color:#719e07>uniform</span> <span style=color:#719e07>sampler2D</span> outline_viewport_texture;
+<span style=color:#719e07>uniform</span> <span style=color:#719e07>vec4</span> outline_color <span style=color:#719e07>:</span> hint_color <span style=color:#719e07>=</span> <span style=color:#719e07>vec4</span>(<span style=color:#2aa198>1</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>);
+<span style=color:#719e07>uniform</span> <span style=color:#719e07>float</span> outline_thickness <span style=color:#719e07>=</span> <span style=color:#2aa198>2.0</span>;
 
-<span class=k>float</span> <span class=n>tex</span><span class=p>(</span><span class=k>vec2</span> <span class=n>uv</span><span class=p>,</span> <span class=k>vec2</span> <span class=n>ts</span><span class=p>,</span> <span class=k>float</span> <span class=n>x</span><span class=p>,</span> <span class=k>float</span> <span class=n>y</span><span class=p>)</span> <span class=p>{</span>
-	<span class=k>return</span> <span class=n>texture</span><span class=p>(</span><span class=n>outline_viewport_texture</span><span class=p>,</span> <span class=n>uv</span> <span class=o>+</span> <span class=k>vec2</span><span class=p>(</span><span class=n>x</span><span class=p>,</span> <span class=n>y</span><span class=p>)</span> <span class=o>*</span> <span class=n>ts</span><span class=p>).</span><span class=n>r</span><span class=p>;</span>
-<span class=p>}</span>
+<span style=color:#719e07>float</span> tex(<span style=color:#719e07>vec2</span> uv, <span style=color:#719e07>vec2</span> ts, <span style=color:#719e07>float</span> x, <span style=color:#719e07>float</span> y) {
+	<span style=color:#719e07>return</span> texture(outline_viewport_texture, uv <span style=color:#719e07>+</span> <span style=color:#719e07>vec2</span>(x, y) <span style=color:#719e07>*</span> ts).r;
+}
 
-<span class=k>float</span> <span class=n>outline</span><span class=p>(</span><span class=k>vec2</span> <span class=n>uv</span><span class=p>,</span> <span class=k>float</span> <span class=n>thickness</span><span class=p>)</span> <span class=p>{</span>
-	<span class=k>vec2</span> <span class=n>ts</span> <span class=o>=</span> <span class=n>thickness</span> <span class=o>/</span> <span class=k>vec2</span><span class=p>(</span><span class=n>textureSize</span><span class=p>(</span><span class=n>outline_viewport_texture</span><span class=p>,</span> <span class=mo>0</span><span class=p>));</span>
-    <span class=c1>// only 4 texture samples!</span>
-	<span class=k>return</span> <span class=p>(</span><span class=n>abs</span><span class=p>(</span><span class=n>tex</span><span class=p>(</span><span class=n>uv</span><span class=p>,</span> <span class=n>ts</span><span class=p>,</span> <span class=o>-</span><span class=mi>1</span><span class=p>,</span> <span class=o>-</span><span class=mi>1</span><span class=p>)</span> <span class=o>-</span> <span class=n>tex</span><span class=p>(</span><span class=n>uv</span><span class=p>,</span> <span class=n>ts</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=mi>1</span><span class=p>))</span> <span class=o>+</span> <span class=n>abs</span><span class=p>(</span><span class=n>tex</span><span class=p>(</span><span class=n>uv</span><span class=p>,</span> <span class=n>ts</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=o>-</span><span class=mi>1</span><span class=p>)</span> <span class=o>-</span> <span class=n>tex</span><span class=p>(</span><span class=n>uv</span><span class=p>,</span> <span class=n>ts</span><span class=p>,</span> <span class=o>-</span><span class=mi>1</span><span class=p>,</span> <span class=mi>1</span><span class=p>)));</span>
-<span class=p>}</span>
+<span style=color:#719e07>float</span> outline(<span style=color:#719e07>vec2</span> uv, <span style=color:#719e07>float</span> thickness) {
+	<span style=color:#719e07>vec2</span> ts <span style=color:#719e07>=</span> thickness <span style=color:#719e07>/</span> <span style=color:#719e07>vec2</span>(textureSize(outline_viewport_texture, <span style=color:#2aa198>0</span>));
+    <span style=color:#586e75>// only 4 texture samples!</span>
+	<span style=color:#719e07>return</span> (abs(tex(uv, ts, <span style=color:#719e07>-</span><span style=color:#2aa198>1</span>, <span style=color:#719e07>-</span><span style=color:#2aa198>1</span>) <span style=color:#719e07>-</span> tex(uv, ts, <span style=color:#2aa198>1</span>, <span style=color:#2aa198>1</span>)) <span style=color:#719e07>+</span> abs(tex(uv, ts, <span style=color:#2aa198>1</span>, <span style=color:#719e07>-</span><span style=color:#2aa198>1</span>) <span style=color:#719e07>-</span> tex(uv, ts, <span style=color:#719e07>-</span><span style=color:#2aa198>1</span>, <span style=color:#2aa198>1</span>)));
+}
 
-<span class=k>void</span> <span class=n>fragment</span><span class=p>()</span> <span class=p>{</span>
-	<span class=k>vec3</span> <span class=n>color</span> <span class=o>=</span> <span class=n>texture</span><span class=p>(</span><span class=n>TEXTURE</span><span class=p>,</span> <span class=n>UV</span><span class=p>).</span><span class=n>xyz</span><span class=p>;</span>
-	<span class=k>float</span> <span class=n>outline</span> <span class=o>=</span> <span class=n>outline</span><span class=p>(</span><span class=n>UV</span><span class=p>,</span> <span class=n>outline_thickness</span><span class=p>);</span>
-	<span class=n>COLOR</span> <span class=o>=</span> <span class=n>mix</span><span class=p>(</span><span class=k>vec4</span><span class=p>(</span><span class=n>color</span><span class=p>,</span> <span class=mi>1</span><span class=p>),</span> <span class=n>outline_color</span><span class=p>,</span> <span class=k>float</span><span class=p>(</span><span class=n>outline</span> <span class=o>&gt;</span> <span class=mf>0.05</span><span class=p>));</span>
-<span class=p>}</span>
-</code></pre></td></tr></table></div></div><p><em>Credit for this shader goes to <a href=http://blog.dalton.gd/quick-outline-ue4/>http://blog.dalton.gd/quick-outline-ue4/</a> .</em></p><p>That&rsquo;s it!</p><h1 id=shortcomings>Shortcomings</h1><ul><li>Wasteful on memory. Since <code>SubViewport</code> does not have a depth-only render mode (ideally this would be in the form of a depth buffer Debug Draw mode - I may open a PR for this in the future), there are basically two depth buffers, one of them in the format R8G8B8A8 (which is even more wasteful for a depth target!).</li><li>Wasteful on GPU usage. GPUs have hardware depth testing and writing. We <em>should be</em> just utilising that in order to render our custom depth buffer and in fact it is, but only in a depth attachment we can&rsquo;t access, so we need to make our own depth-writing shader for no good reason. Again, this is just Godot&rsquo;s fault for not exposing the depth buffer of a viewport.</li><li>Large thickness values don&rsquo;t look great. This is because the edge detection only looks at the 4 adjacent texels to determine an outline and simply just scales the UV outwards to simulate thickness. &ldquo;Real&rdquo; thickness-based edge detection would need to look at <code>pi * thickness * thickness</code> texels.</li></ul></div><footer><p class=meta><span class="byline author vcard">Posted by <span class=fn>jazzfool</span></span>
+<span style=color:#719e07>void</span> fragment() {
+	<span style=color:#719e07>vec3</span> color <span style=color:#719e07>=</span> texture(TEXTURE, UV).xyz;
+	<span style=color:#719e07>float</span> outline <span style=color:#719e07>=</span> outline(UV, outline_thickness);
+	COLOR <span style=color:#719e07>=</span> mix(<span style=color:#719e07>vec4</span>(color, <span style=color:#2aa198>1</span>), outline_color, <span style=color:#719e07>float</span>(outline <span style=color:#719e07>&gt;</span> <span style=color:#2aa198>0.05</span>));
+}
+</code></pre></div><p><em>Credit for this shader goes to <a href=http://blog.dalton.gd/quick-outline-ue4/>http://blog.dalton.gd/quick-outline-ue4/</a> .</em></p><p>That&rsquo;s it!</p><h1 id=shortcomings>Shortcomings</h1><ul><li>Wasteful on memory. Since <code>SubViewport</code> does not have a depth-only render mode (ideally this would be in the form of a depth buffer Debug Draw mode - I may open a PR for this in the future), there are basically two depth buffers, one of them in the format R8G8B8A8 (which is even more wasteful for a depth target!).</li><li>Wasteful on GPU usage. GPUs have hardware depth testing and writing. We <em>should be</em> just utilising that in order to render our custom depth buffer and in fact it is, but only in a depth attachment we can&rsquo;t access, so we need to make our own depth-writing shader for no good reason. Again, this is just Godot&rsquo;s fault for not exposing the depth buffer of a viewport.</li><li>Large thickness values don&rsquo;t look great. This is because the edge detection only looks at the 4 adjacent texels to determine an outline and simply just scales the UV outwards to simulate thickness. &ldquo;Real&rdquo; thickness-based edge detection would need to look at <code>pi * thickness * thickness</code> texels.</li></ul></div><footer><p class=meta><span class="byline author vcard">Posted by <span class=fn>jazzfool</span></span>
 <time>Feb 9, 2022</time></span></p><p class=meta><a class="basic-alignment left" href=/post/reactive/ title="Exploring reactive UI">Exploring reactive UI</a>
 <a class="basic-alignment right" href=/post/godot-outlines-pt2/ title="3D Outlines in Godot, Part 2">3D Outlines in Godot, Part 2</a></p></footer></article></div><aside class="sidebar thirds"><section class="first odd"><p></p></section><ul class=sidebar-nav><li class=sidebar-nav-item></li></ul></aside></div></div><footer role=contentinfo><p>Copyright &copy; 2023 jazzfool - <a href=/license/>License</a> -
 <span class=credit>Powered by <a target=_blank href=https://gohugo.io rel="noopener noreferrer">Hugo</a> and <a target=_blank href=https://github.com/parsiya/hugo-octopress/ rel="noopener noreferrer">Hugo-Octopress</a> theme.</p></footer></body></html>

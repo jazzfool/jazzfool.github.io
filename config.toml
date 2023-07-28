@@ -10,7 +10,7 @@ disqusShortname = ""
   siteName = "jazzfool.github.io"
   author = "jazzfool"
 
-  customCSS = ["static/styles.css"]
+  customCSS = ["/styles.css"]
 
   tableOfContents = true
   compactIndex = true

@@ -1,44 +1,21 @@
 baseurl = ""
 languageCode = "en-us"
-title = "Jazzfool's Blog"
+title = "$ jazzfool.github.io"
 theme = "Hugo-Octopress"
 paginate = 6
 
 disqusShortname = ""
 
 [params]
-  # Emoji will show before the blog title on site navbar.
-  titleEmoji  = ""
-
-  # Logo will show before the blog title on site navbar.
-  titleLogo = ""
-
-  # Enable float footnotes.
-  # Default to true
-  enableFootnotes = false
-  siteName = "Jazzfool's Blog"
-  siteDesc = "A sinkhole for my projects"
+  siteName = "jazzfool.github.io"
   author = "jazzfool"
 
-  # Limit how many categories filter show above search input.
-  # Default to 5
-  maxCategoryToShow = 10
+  customCSS = ["styles.css"]
 
-  # Show your social information with icon on index bio with `_index.md` content.
-  [params.socialOptions]
-    dev-to = ""
-    email = ""
-    facebook = ""
-    github = "https://github.com/jazzfool"
-    instagram = ""
-    linkedin = ""
-    medium = ""
-    stack-overflow = ""
-    steam = ""
-    telegram = ""
-    twitter = ""
-    twitch = ""
-    whatsapp = ""
+  tableOfContents = true
+  compactIndex = true
+  navigationNewWindow = true
+  enableFootnotes = false
   
   # Comments settigns
   [params.comments]
@@ -46,16 +23,21 @@ disqusShortname = ""
     provider = ""
 
 [menu]
-[[menu.header]]
+[[menu.main]]
   name = "Articles"
-  url = "/articles/"
+  url = "/"
+[[menu.main]]
+  name = "GitHub"
+  url = "https://github.com/jazzfool"
 
 [markup]
-[markup.highlight]
-  noClasses = false
-  lineNos = true
-[markup.goldmark.renderer]
-  unsafe = true
+  [markup.highlight]
+    style = "solarized-dark"
+  [markup.goldmark.renderer]
+    unsafe = true
+  [markup.tableOfContents]
+    endLevel = 8
+    startLevel = 1
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]

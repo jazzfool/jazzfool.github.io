@@ -1,0 +1,220 @@
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=en lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,minimum-scale=1,maximum-scale=1"><link href=/css/fonts.css rel=stylesheet type=text/css><title>Diving into graphics drivers, Part 1</title><link rel=stylesheet href=/css/hugo-octopress.css><link rel=stylesheet href=/styles.css><link rel=stylesheet href=/css/fork-awesome.min.css><link href=/favicon.png rel=icon><meta name=description content><meta name=keywords content><meta name=author content="jazzfool"><meta name=generator content="Hugo 0.85.0"></head><body><header role=banner><hgroup><h1><a href=/>$ jazzfool.github.io</a></h1><h2></h2></hgroup></header><nav role=navigation><fieldset class=mobile-nav><select onchange="location=this.value"><option value>Navigate…</option><option value=/>» Articles</option><option value=https://github.com/jazzfool>» GitHub</option></select></fieldset><ul class=main-navigation><li><a href=/ title=Articles>Articles</a></li><li><a href=https://github.com/jazzfool title=GitHub target=_blank rel="noopener noreferrer">GitHub</a></li></ul><ul class=subscription></ul></nav><div id=main><div id=content><div><article class=hentry role=article><header><p class=meta>Jul 30, 2023
+- 12 minute read</p><h1 class=entry-title>Diving into graphics drivers, Part 1</h1></header><div class=entry-content><nav id=TableOfContents><ul><li><ul><li><a href=#motive>Motive</a></li><li><a href=#where-do-i-start>Where do I start?!</a><ul><li><a href=#enter-drm>Enter DRM</a></li><li><a href=#exit-drm>Exit DRM</a></li></ul></li></ul></li></ul></nav><p><strong>Note:</strong> This is merely a diary of my journey into graphics drivers. I may get some things wrong here (
+<a href=mailto:shamoslover69@gmail.com>email me if this is the case</a>), but it&rsquo;s absolutely worth noting here that I am a complete and utter beginner to graphics driver development.</p><h2 id=motive>Motive</h2><p>Why am I getting my hands dirty with graphics drivers? Throughout my entire software development life (mostly as a hobbyist contributing to open-source), I have always tried to find &ldquo;the next thing&rdquo; to challenge myself with. At some point, that &ldquo;next thing&rdquo; was learning Vulkan and graphics programming, which I can now say I have succeeded in doing (though of course, I am always learning). Learning Vulkan without a lot of prior exposure to graphics programming and without much guidance was definitely one of the hardest things I&rsquo;ve done in terms of software development, but it broke down many mental barriers in terms of levels of difficulty - essentially, nothing in software (or even hardware) is &ldquo;too hard&rdquo; for me now: I know I can learn and understand anything if given enough time. I also have a mindset in software to never leave any stone unturned, so while the Vulkan API is nice and all, I&rsquo;d like to see how my <code>vkCmdDraw</code> ends up as voltage in the PCIe line.</p><p>So in short, the motivation for this is simply, <em>to learn</em>.</p><h2 id=where-do-i-start>Where do I start?!</h2><p>Perhaps the biggest challenge when learning something new (and something so vast) is the ubiquitous beginner question: &ldquo;Where do I even start?&rdquo;. My answer to this is to <strong>just start</strong>. Start anywhere. And start I did - at the Linux kernel.</p><h3 id=enter-drm>Enter DRM</h3><p>When I looked into graphics drivers, I saw one common underpinning to all of them: <code>libdrm</code>. What is this <code>libdrm</code> and what does it do? <code>libdrm</code> is actually the interface to the DRM drivers in the Linux kernel. See, there&rsquo;s a very clear boundary to where graphics drivers operate. Much of the graphics driver actually operates in user-space, but at some point the driver will definitely need to send packets over PCIe. Now I&rsquo;m sure there are ways to do this in user-space (vfio?), but really this is the job of the DRM driver running in kernel-space. More obvious is that this task is <em>heavily</em> vendor-specific. The layout of the data sent and what kind of data to send is all very specific to the GPU itself. We can confirm this by looking at
+<a href=https://github.com/torvalds/linux/tree/master/drivers/gpu/drm target=_blank rel=noopener><code>linux/drivers/gpu/drm</code></a>. We can see the main desktop vendors here like <code>amd</code> and <code>nouveau</code>, but also some reverse-engineered ones like <code>panfrost</code> for Arm Mali, and in the future I&rsquo;m sure the <code>agx</code> DRM will be upstreamed for Asahi Linux! For the rest of my exploration, I decided to focus exclusively on AMD drivers, for no particular reason.</p><p>I won&rsquo;t get into the details of every aspect of the DRM (mostly because I don&rsquo;t know those details&mldr;), but I&rsquo;ll dissect a very small slice of it to get a very rough idea of how it works. Let&rsquo;s look at how, for example, a command to copy a GPU buffer works.</p><p>Right off the bat, I&rsquo;m able to find a function named <code>amdgpu_copy_buffer</code> in <code>amdgpu_ttm.c</code>. Through curiosity, one quick search leads me
+<a href=https://docs.kernel.org/gpu/drm-mm.html target=_blank rel=noopener>here</a>, and we find that <code>ttm</code> stands for <strong>Translation Table Manager</strong>. That page sums it up in a single sentence nicely, but essentially, TTM will give us a <strong>buffer object</strong> which represents our resource(s), and it will handle all the nitty gritty details like CPU mapping and sending the memory around. Okay, excellent. Now let&rsquo;s look at the implementation of <code>amdgpu_copy_buffer</code>:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#dc322f>int</span> <span style=color:#268bd2>amdgpu_copy_buffer</span>(<span style=color:#719e07>struct</span> amdgpu_ring <span style=color:#719e07>*</span>ring, <span style=color:#dc322f>uint64_t</span> src_offset,
+		       <span style=color:#dc322f>uint64_t</span> dst_offset, <span style=color:#dc322f>uint32_t</span> byte_count,
+		       <span style=color:#719e07>struct</span> dma_resv <span style=color:#719e07>*</span>resv,
+		       <span style=color:#719e07>struct</span> dma_fence <span style=color:#719e07>**</span>fence, <span style=color:#dc322f>bool</span> direct_submit,
+		       <span style=color:#dc322f>bool</span> vm_needs_flush, <span style=color:#dc322f>bool</span> tmz)
+{
+	<span style=color:#719e07>struct</span> amdgpu_device <span style=color:#719e07>*</span>adev <span style=color:#719e07>=</span> ring<span style=color:#719e07>-&gt;</span>adev;
+	<span style=color:#dc322f>unsigned</span> <span style=color:#dc322f>int</span> num_loops, num_dw;
+	<span style=color:#719e07>struct</span> amdgpu_job <span style=color:#719e07>*</span>job;
+	<span style=color:#dc322f>uint32_t</span> max_bytes;
+	<span style=color:#dc322f>unsigned</span> <span style=color:#dc322f>int</span> i;
+	<span style=color:#dc322f>int</span> r;
+
+	<span style=color:#719e07>if</span> (<span style=color:#719e07>!</span>direct_submit <span style=color:#719e07>&amp;&amp;</span> <span style=color:#719e07>!</span>ring<span style=color:#719e07>-&gt;</span>sched.ready) {
+		DRM_ERROR(<span style=color:#2aa198>&#34;Trying to move memory with ring turned off.</span><span style=color:#cb4b16>\n</span><span style=color:#2aa198>&#34;</span>);
+		<span style=color:#719e07>return</span> <span style=color:#719e07>-</span>EINVAL;
+	}
+
+	max_bytes <span style=color:#719e07>=</span> adev<span style=color:#719e07>-&gt;</span>mman.buffer_funcs<span style=color:#719e07>-&gt;</span>copy_max_bytes;
+	num_loops <span style=color:#719e07>=</span> DIV_ROUND_UP(byte_count, max_bytes);
+	num_dw <span style=color:#719e07>=</span> ALIGN(num_loops <span style=color:#719e07>*</span> adev<span style=color:#719e07>-&gt;</span>mman.buffer_funcs<span style=color:#719e07>-&gt;</span>copy_num_dw, <span style=color:#2aa198>8</span>);
+	r <span style=color:#719e07>=</span> amdgpu_ttm_prepare_job(adev, direct_submit, num_dw,
+				   resv, vm_needs_flush, <span style=color:#719e07>&amp;</span>job, <span style=color:#b58900>false</span>);
+	<span style=color:#719e07>if</span> (r)
+		<span style=color:#719e07>return</span> r;
+
+	<span style=color:#719e07>for</span> (i <span style=color:#719e07>=</span> <span style=color:#2aa198>0</span>; i <span style=color:#719e07>&lt;</span> num_loops; i<span style=color:#719e07>++</span>) {
+		<span style=color:#dc322f>uint32_t</span> cur_size_in_bytes <span style=color:#719e07>=</span> min(byte_count, max_bytes);
+
+		amdgpu_emit_copy_buffer(adev, <span style=color:#719e07>&amp;</span>job<span style=color:#719e07>-&gt;</span>ibs[<span style=color:#2aa198>0</span>], src_offset,
+					dst_offset, cur_size_in_bytes, tmz);
+
+		src_offset <span style=color:#719e07>+=</span> cur_size_in_bytes;
+		dst_offset <span style=color:#719e07>+=</span> cur_size_in_bytes;
+		byte_count <span style=color:#719e07>-=</span> cur_size_in_bytes;
+	}
+
+	amdgpu_ring_pad_ib(ring, <span style=color:#719e07>&amp;</span>job<span style=color:#719e07>-&gt;</span>ibs[<span style=color:#2aa198>0</span>]);
+	WARN_ON(job<span style=color:#719e07>-&gt;</span>ibs[<span style=color:#2aa198>0</span>].length_dw <span style=color:#719e07>&gt;</span> num_dw);
+	<span style=color:#719e07>if</span> (direct_submit)
+		r <span style=color:#719e07>=</span> amdgpu_job_submit_direct(job, ring, fence);
+	<span style=color:#719e07>else</span>
+		<span style=color:#719e07>*</span>fence <span style=color:#719e07>=</span> amdgpu_job_submit(job);
+	<span style=color:#719e07>if</span> (r)
+		<span style=color:#719e07>goto</span> error_free;
+
+	<span style=color:#719e07>return</span> r;
+
+error_free:
+	amdgpu_job_free(job);
+	DRM_ERROR(<span style=color:#2aa198>&#34;Error scheduling IBs (%d)</span><span style=color:#cb4b16>\n</span><span style=color:#2aa198>&#34;</span>, r);
+	<span style=color:#719e07>return</span> r;
+}
+</code></pre></div><p>Hmm, lots of stuff going on here. Let&rsquo;s take it step-by-step. I can pick out the parameters that immediately make sense: <code>src_offset</code>, <code>dst_offset</code>, and <code>byte_count</code> are painfully obvious and I assume they pretty much directly map to the same parameters higher up (e.g.,
+<a href=https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkBufferCopy.html target=_blank rel=noopener><code>VkBufferCopy</code></a>). Now <code>amdgpu_ring</code>, I can see that <code>amdgpu_device</code> is taken from <code>ring->adev</code>, so what is <code>amdgpu_ring</code> exactly? Some more poking around into <code>amdgpu_ring.h</code> and fingers crossed there&rsquo;s a comment&mldr;</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/* provided by hw blocks that expose a ring buffer for commands */</span>
+<span style=color:#719e07>struct</span> amdgpu_ring_funcs {
+	<span style=color:#586e75>/* ... */</span>
+</code></pre></div><p>Ahh. Well, there it is; a ring buffer for commands.</p><p>Now <code>dma_fence</code>, this is definitely an output parameter, and I&rsquo;m going to take a wild guess and say it&rsquo;s a fence primitive for sync.</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/**
+</span><span style=color:#586e75> * struct dma_fence - software synchronization primitive
+</span><span style=color:#586e75>	...
+</span><span style=color:#586e75> */</span>
+<span style=color:#719e07>struct</span> dma_fence {
+	<span style=color:#586e75>/* ... */</span>
+</code></pre></div><p>Wow! Am I a genius or what? :)</p><p>Now important distinction to make here is that I don&rsquo;t think this is <em>directly</em> related to the GPU fences we all know and love (e.g., <code>VkFence</code>). This fence is actually agnostic to any kind of driver in the Linux kernel and seems to be a part of the DMA system. Now very well this could be a part of the implementation for those GPU fences (
+<a href=https://www.kernel.org/doc/html/v5.9/driver-api/dma-buf.html#dma-fences target=_blank rel=noopener>and probably is?</a> We&rsquo;ll find out later I&rsquo;m sure)</p><p>Moving on from that, we see a <code>dma_resv</code> parameter. Let&rsquo;s investigate:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/**
+</span><span style=color:#586e75> * struct dma_resv - a reservation object manages fences for a buffer
+</span><span style=color:#586e75> *
+</span><span style=color:#586e75> * This is a container for dma_fence objects which needs to handle multiple use
+</span><span style=color:#586e75> * cases.
+</span><span style=color:#586e75> *
+</span><span style=color:#586e75> * One use is to synchronize cross-driver access to a struct dma_buf, either for
+</span><span style=color:#586e75> * dynamic buffer management or just to handle implicit synchronization between
+</span><span style=color:#586e75> * different users of the buffer in userspace. See &amp;dma_buf.resv for a more
+</span><span style=color:#586e75> * in-depth discussion.
+</span><span style=color:#586e75> *
+</span><span style=color:#586e75> * The other major use is to manage access and locking within a driver in a
+</span><span style=color:#586e75> * buffer based memory manager. struct ttm_buffer_object is the canonical
+</span><span style=color:#586e75> * example here, since this is where reservation objects originated from. But
+</span><span style=color:#586e75> * use in drivers is spreading and some drivers also manage struct
+</span><span style=color:#586e75> * drm_gem_object with the same scheme.
+</span><span style=color:#586e75> */</span>
+<span style=color:#719e07>struct</span> dma_resv {
+	<span style=color:#586e75>/* ... */</span>
+</code></pre></div><p>Interesting. Again, part of the DMA system and so driver-agnostic, but essentially this manages access to the buffer objects mentioned earlier. Makes sense! So if we need to access a buffer, we need to lock it, or &ldquo;reserve&rdquo; it, before doing so. Looking at the body of the <code>amdgpu_copy_buffer</code> function we can see it&rsquo;s used in one place only, <code>amdgpu_ttm_prepare_job</code> (defined right above <code>amdgpu_copy_buffer</code> conveniently enough).</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#719e07>static</span> <span style=color:#dc322f>int</span> <span style=color:#268bd2>amdgpu_ttm_prepare_job</span>(<span style=color:#719e07>struct</span> amdgpu_device <span style=color:#719e07>*</span>adev,
+				  <span style=color:#dc322f>bool</span> direct_submit,
+				  <span style=color:#dc322f>unsigned</span> <span style=color:#dc322f>int</span> num_dw,
+				  <span style=color:#719e07>struct</span> dma_resv <span style=color:#719e07>*</span>resv,
+				  <span style=color:#dc322f>bool</span> vm_needs_flush,
+				  <span style=color:#719e07>struct</span> amdgpu_job <span style=color:#719e07>**</span>job)
+{
+	<span style=color:#719e07>enum</span> amdgpu_ib_pool_type pool <span style=color:#719e07>=</span> direct_submit <span style=color:#719e07>?</span>
+		AMDGPU_IB_POOL_DIRECT :
+		AMDGPU_IB_POOL_DELAYED;
+	<span style=color:#dc322f>int</span> r;
+
+	r <span style=color:#719e07>=</span> amdgpu_job_alloc_with_ib(adev, <span style=color:#719e07>&amp;</span>adev<span style=color:#719e07>-&gt;</span>mman.entity,
+				     AMDGPU_FENCE_OWNER_UNDEFINED,
+				     num_dw <span style=color:#719e07>*</span> <span style=color:#2aa198>4</span>, pool, job);
+	<span style=color:#719e07>if</span> (r)
+		<span style=color:#719e07>return</span> r;
+
+	<span style=color:#719e07>if</span> (vm_needs_flush) {
+		(<span style=color:#719e07>*</span>job)<span style=color:#719e07>-&gt;</span>vm_pd_addr <span style=color:#719e07>=</span> amdgpu_gmc_pd_addr(adev<span style=color:#719e07>-&gt;</span>gmc.pdb0_bo <span style=color:#719e07>?</span>
+							adev<span style=color:#719e07>-&gt;</span>gmc.pdb0_bo :
+							adev<span style=color:#719e07>-&gt;</span>gart.bo);
+		(<span style=color:#719e07>*</span>job)<span style=color:#719e07>-&gt;</span>vm_needs_flush <span style=color:#719e07>=</span> <span style=color:#b58900>true</span>;
+	}
+	<span style=color:#719e07>if</span> (<span style=color:#719e07>!</span>resv)
+		<span style=color:#719e07>return</span> <span style=color:#2aa198>0</span>;
+
+	<span style=color:#719e07>return</span> drm_sched_job_add_resv_dependencies(<span style=color:#719e07>&amp;</span>(<span style=color:#719e07>*</span>job)<span style=color:#719e07>-&gt;</span>base, resv,
+						   DMA_RESV_USAGE_BOOKKEEP);
+}
+</code></pre></div><p>And <code>drm_sched_job_add_resv_dependencies</code> is the only place where <code>resv</code> is used. I don&rsquo;t think the implementation of <code>drm_sched_job_add_resv_dependencies</code> is super important here - we really more care about what it ends up doing, but essentially the documentation states:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/**
+</span><span style=color:#586e75> * drm_sched_job_add_resv_dependencies - add all fences from the resv to the job
+</span><span style=color:#586e75> * @job: scheduler job to add the dependencies to
+</span><span style=color:#586e75> * @resv: the dma_resv object to get the fences from
+</span><span style=color:#586e75> * @usage: the dma_resv_usage to use to filter the fences
+</span><span style=color:#586e75> *
+</span><span style=color:#586e75> * This adds all fences matching the given usage from @resv to @job.
+</span><span style=color:#586e75> * Must be called with the @resv lock held.
+</span><span style=color:#586e75> *
+</span><span style=color:#586e75> * Returns:
+</span><span style=color:#586e75> * 0 on success, or an error on failing to expand the array.
+</span><span style=color:#586e75> */</span>
+<span style=color:#dc322f>int</span> <span style=color:#268bd2>drm_sched_job_add_resv_dependencies</span>(<span style=color:#719e07>struct</span> drm_sched_job <span style=color:#719e07>*</span>job,
+					<span style=color:#719e07>struct</span> dma_resv <span style=color:#719e07>*</span>resv,
+					<span style=color:#719e07>enum</span> dma_resv_usage usage)
+{
+	<span style=color:#586e75>/* ... */</span>
+</code></pre></div><p>Okay, now this thing is starting to make sense. We have a <code>drm_sched_job</code> which actually does the job at hand (the buffer copy), and jobs have a list of dependencies (fences) they must wait on before executing. So the <code>dma_resv</code> is just a list of all the dependencies for a given buffer object that e.g., a job accessing that buffer object must wait on.</p><p>The last three parameters of <code>amdgpu_copy_buffer</code> are <code>direct_submit</code>, <code>vm_needs_flush</code>, and <code>tmz</code>. <code>vm_needs_flush</code> is fairly straight-forward, basically signalling whether we need to flush the GPU virtual memory (GPUVM) (actally
+<a href=https://docs.kernel.org/gpu/amdgpu/amdgpu-glossary.html target=_blank rel=noopener>here&rsquo;s</a> a big glossary of all the acronyms that are popping up).</p><p><code>direct_submit</code> is the difference between submitting our job via <code>amdgpu_job_submit_direct</code> if true, or <code>amdgpu_job_submit</code> if false. These two functions are also conveniently right next to each other so here they are:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#719e07>struct</span> dma_fence <span style=color:#719e07>*</span><span style=color:#268bd2>amdgpu_job_submit</span>(<span style=color:#719e07>struct</span> amdgpu_job <span style=color:#719e07>*</span>job)
+{
+	<span style=color:#719e07>struct</span> dma_fence <span style=color:#719e07>*</span>f;
+
+	drm_sched_job_arm(<span style=color:#719e07>&amp;</span>job<span style=color:#719e07>-&gt;</span>base);
+	f <span style=color:#719e07>=</span> dma_fence_get(<span style=color:#719e07>&amp;</span>job<span style=color:#719e07>-&gt;</span>base.s_fence<span style=color:#719e07>-&gt;</span>finished);
+	amdgpu_job_free_resources(job);
+	drm_sched_entity_push_job(<span style=color:#719e07>&amp;</span>job<span style=color:#719e07>-&gt;</span>base);
+
+	<span style=color:#719e07>return</span> f;
+}
+
+<span style=color:#dc322f>int</span> <span style=color:#268bd2>amdgpu_job_submit_direct</span>(<span style=color:#719e07>struct</span> amdgpu_job <span style=color:#719e07>*</span>job, <span style=color:#719e07>struct</span> amdgpu_ring <span style=color:#719e07>*</span>ring,
+			     <span style=color:#719e07>struct</span> dma_fence <span style=color:#719e07>**</span>fence)
+{
+	<span style=color:#dc322f>int</span> r;
+
+	job<span style=color:#719e07>-&gt;</span>base.sched <span style=color:#719e07>=</span> <span style=color:#719e07>&amp;</span>ring<span style=color:#719e07>-&gt;</span>sched;
+	r <span style=color:#719e07>=</span> amdgpu_ib_schedule(ring, job<span style=color:#719e07>-&gt;</span>num_ibs, job<span style=color:#719e07>-&gt;</span>ibs, job, fence);
+
+	<span style=color:#719e07>if</span> (r)
+		<span style=color:#719e07>return</span> r;
+
+	amdgpu_job_free(job);
+	<span style=color:#719e07>return</span> <span style=color:#2aa198>0</span>;
+}
+</code></pre></div><p>It seems that <code>amdgpu_job_submit_direct</code> inserts the job directly into the ring buffer, whereas <code>amdgpu_job_submit</code> schedules it with the DRM scheduler (driver-agnostic). I&rsquo;m sort of inspecting this entire function tree in a vacuum so I don&rsquo;t know why you&rsquo;d use one over the other, but I think looking at the user-space drivers would give us more information regarding that.</p><p>Finally, the <code>tmz</code> parameter&mldr; well, you&rsquo;ll see.</p><p>With all that (mostly) figured out, I can actually simplify the body of the <code>amdgpu_copy_buffer</code> function:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#dc322f>int</span> <span style=color:#268bd2>amdgpu_copy_buffer</span>(<span style=color:#719e07>struct</span> amdgpu_ring <span style=color:#719e07>*</span>ring, <span style=color:#dc322f>uint64_t</span> src_offset,
+		       <span style=color:#dc322f>uint64_t</span> dst_offset, <span style=color:#dc322f>uint32_t</span> byte_count,
+		       <span style=color:#719e07>struct</span> dma_resv <span style=color:#719e07>*</span>resv,
+		       <span style=color:#719e07>struct</span> dma_fence <span style=color:#719e07>**</span>fence, <span style=color:#dc322f>bool</span> direct_submit,
+		       <span style=color:#dc322f>bool</span> vm_needs_flush, <span style=color:#dc322f>bool</span> tmz)
+{
+	<span style=color:#586e75>/* initialize some variables */</span>
+
+	<span style=color:#586e75>/* return an error if the ring isn&#39;t &#34;ready&#34; - required to submit our job */</span>
+
+	max_bytes <span style=color:#719e07>=</span> adev<span style=color:#719e07>-&gt;</span>mman.buffer_funcs<span style=color:#719e07>-&gt;</span>copy_max_bytes;
+	num_loops <span style=color:#719e07>=</span> DIV_ROUND_UP(byte_count, max_bytes);
+	num_dw <span style=color:#719e07>=</span> ALIGN(num_loops <span style=color:#719e07>*</span> adev<span style=color:#719e07>-&gt;</span>mman.buffer_funcs<span style=color:#719e07>-&gt;</span>copy_num_dw, <span style=color:#2aa198>8</span>);
+	r <span style=color:#719e07>=</span> amdgpu_ttm_prepare_job(adev, direct_submit, num_dw,
+				   resv, vm_needs_flush, <span style=color:#719e07>&amp;</span>job, <span style=color:#b58900>false</span>);
+	<span style=color:#719e07>if</span> (r)
+		<span style=color:#719e07>return</span> r;
+
+	<span style=color:#719e07>for</span> (i <span style=color:#719e07>=</span> <span style=color:#2aa198>0</span>; i <span style=color:#719e07>&lt;</span> num_loops; i<span style=color:#719e07>++</span>) {
+		<span style=color:#dc322f>uint32_t</span> cur_size_in_bytes <span style=color:#719e07>=</span> min(byte_count, max_bytes);
+
+		amdgpu_emit_copy_buffer(adev, <span style=color:#719e07>&amp;</span>job<span style=color:#719e07>-&gt;</span>ibs[<span style=color:#2aa198>0</span>], src_offset,
+					dst_offset, cur_size_in_bytes, tmz);
+
+		src_offset <span style=color:#719e07>+=</span> cur_size_in_bytes;
+		dst_offset <span style=color:#719e07>+=</span> cur_size_in_bytes;
+		byte_count <span style=color:#719e07>-=</span> cur_size_in_bytes;
+	}
+
+	<span style=color:#586e75>/* submit our job */</span>
+}
+</code></pre></div><p>Now I really have the core of this function. First thing I notice is that we copy in a loop. In fact, this emits <code>num_loop</code> buffer copy commands. Why? <code>num_loops = DIV_ROUND_UP(byte_count, max_bytes);</code> Right, so there&rsquo;s actually a limit to how many bytes we can copy at a time (from <code>adev->mman.buffer_funcs->copy_max_bytes</code>). Whether this is a limit of the GPU itself, the TTM, or PCIe, or whatever, I don&rsquo;t know (yet), but there&rsquo;s a limit. As such, we need to split up our copy up into chunks of <code>max_bytes</code>.</p><p><code>num_dw</code> is the number of dwords our job will need to store all our commands. As you can imagine, it is <code>num_loop</code> times the number of dwords for a single buffer copy command (<code>adev->mman.buffer_funcs->copy_num_dw</code>). We&rsquo;ll actually see precisely what that number is soon. If we look back at <code>amdgpu_ttm_prepare_job</code> we can see that it&rsquo;s being passed to <code>amdgpu_job_alloc_with_ib</code> as <code>num_dw * 4</code>, thus <code>amdgpu_job_alloc_with_ib</code> will allocate a job with an IB (I&rsquo;ll get into that later) with <code>num_dw * 4</code> bytes.</p><p>Then we get to the loop where we emit the actual buffer copy commands, with our offsets incrementing as we go through each <code>max_bytes</code> &ldquo;chunk&rdquo; of the copy. Let&rsquo;s look into the <code>amdgpu_emit_copy_buffer</code> function now. Which, uhh, isn&rsquo;t a function? It&rsquo;s a macro that invokes a function pointer. Well, I might have an idea of why this is. AMD might change their encoding of copy buffer commands so that function may change depending on the specific version/model of GPU. I&rsquo;ll just look at one <em>possible</em> implementation, in <code>sdma_v2_4.c</code>:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#719e07>static</span> <span style=color:#dc322f>void</span> <span style=color:#268bd2>sdma_v2_4_emit_copy_buffer</span>(<span style=color:#719e07>struct</span> amdgpu_ib <span style=color:#719e07>*</span>ib,
+				       <span style=color:#dc322f>uint64_t</span> src_offset,
+				       <span style=color:#dc322f>uint64_t</span> dst_offset,
+				       <span style=color:#dc322f>uint32_t</span> byte_count,
+				       <span style=color:#dc322f>bool</span> tmz)
+{
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> SDMA_PKT_HEADER_OP(SDMA_OP_COPY) <span style=color:#719e07>|</span>
+		SDMA_PKT_HEADER_SUB_OP(SDMA_SUBOP_COPY_LINEAR);
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> byte_count;
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> <span style=color:#2aa198>0</span>; <span style=color:#586e75>/* src/dst endian swap */</span>
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> lower_32_bits(src_offset);
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> upper_32_bits(src_offset);
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> lower_32_bits(dst_offset);
+	ib<span style=color:#719e07>-&gt;</span>ptr[ib<span style=color:#719e07>-&gt;</span>length_dw<span style=color:#719e07>++</span>] <span style=color:#719e07>=</span> upper_32_bits(dst_offset);
+}
+</code></pre></div><p>There it is. The fruits of our labor. The exact format of the data that gets sent to the GPU (I think). So first off, we can see that this entire command takes 7 dwords which we can confirm further up in <code>sdma_v2_4.c</code>: <code>.copy_num_dw = 7</code>. Here we can also see that mysterious <code>tmz</code> parameter and that it does&mldr; nothing. Hah. I&rsquo;m sure it had some now-obsolete purpose or is used in other implementations of <code>*_emit_copy_buffer</code>.</p><p>We send the header specifying what kind of command it is - <code>SDMA_OP_COPY | SDMA_SUBOP_COPY_LINEAR</code> - <code>SDMA_OP_COPY</code> looks to be an overarching copy operation, and <code>SDMA_SUBOP_COPY_LINEAR</code> specifies it is for linear memory. So I wonder if for optimal-layout image copies it would use <code>SDMA_OP_COPY | SDMA_SUBOP_COPY_TILED</code>? Regardless, everything else is as expected, sending the <code>byte_count</code> and the upper/lower dwords of the offsets. Also a dword set to 0 kindly annotated to explain that it is for swapping endianness (which I guess it doesn&rsquo;t need to do here!)</p><p>Along the way it increments an internal dword offset in <code>amdgpu_ib</code>, which explains why I didn&rsquo;t see anything to specify the byte offset for each command in the loop in <code>amdgpu_copy_buffer</code>.</p><p>Okay, one final struct to investigate: <code>amdgpu_ib</code>. IB stands for <strong>indirect buffer</strong> and is explained here:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/*
+</span><span style=color:#586e75> * IB
+</span><span style=color:#586e75> * IBs (Indirect Buffers) and areas of GPU accessible memory where
+</span><span style=color:#586e75> * commands are stored.  You can put a pointer to the IB in the
+</span><span style=color:#586e75> * command ring and the hw will fetch the commands from the IB
+</span><span style=color:#586e75> * and execute them.  Generally userspace acceleration drivers
+</span><span style=color:#586e75> * produce command buffers which are send to the kernel and
+</span><span style=color:#586e75> * put in IBs for execution by the requested ring.
+</span><span style=color:#586e75> */</span>
+<span style=color:#719e07>static</span> <span style=color:#dc322f>int</span> <span style=color:#268bd2>amdgpu_debugfs_sa_init</span>(<span style=color:#719e07>struct</span> amdgpu_device <span style=color:#719e07>*</span>adev);
+</code></pre></div><p>So quite simple really: It&rsquo;s just a buffer where we write our commands. Each job (optionally?) has an IB allocated along with it (see <code>amdgpu_job_alloc_with_ib</code> above). When we put our job into the <code>amdgpu_ring</code>, the hardware (the GPU) will read commands from that IB and execute it. In the future I&rsquo;d like to dig deeper into what these indirect buffers <em>really are</em>.</p><h3 id=exit-drm>Exit DRM</h3><p>With that, I think that concludes this first part of my journey! We started with a high-level command (<code>amdgpu_copy_buffer</code>) and worked out how it is initialized, where the command actually gets stored, how the command is written (and in the case of SDMA v2.4, the encoding of the command), and finally how the command is submitted and scheduled. There are plenty of loose ends still here that I haven&rsquo;t explored, but for now we&rsquo;ll leave DRM to another day. In part two, I&rsquo;d like to look at the user-space driver and how it invokes <code>amdgpu_copy_buffer</code>.</p></div><footer><p class=meta><span class="byline author vcard">Posted by <span class=fn>jazzfool</span></span>
+<time>Jul 30, 2023</time></span></p><p class=meta><a class="basic-alignment left" href=/post/phenotune/ title="Reconstructing music with genetic algorithms">Reconstructing music with genetic algorithms</a></p></footer></article></div><aside class="sidebar thirds"><section class="first odd"><p></p></section><ul class=sidebar-nav><li class=sidebar-nav-item></li></ul></aside></div></div><footer role=contentinfo><p>Copyright &copy; 2023 jazzfool - <a href=/license/>License</a> -
+<span class=credit>Powered by <a target=_blank href=https://gohugo.io rel="noopener noreferrer">Hugo</a> and <a target=_blank href=https://github.com/parsiya/hugo-octopress/ rel="noopener noreferrer">Hugo-Octopress</a> theme.</p></footer></body></html>

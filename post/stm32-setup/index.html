@@ -1,0 +1,133 @@
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=en lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,minimum-scale=1,maximum-scale=1"><link href=/css/fonts.css rel=stylesheet type=text/css><title>How to set up an STM32 development environment, from scratch</title><link rel=stylesheet href=/css/hugo-octopress.css><link rel=stylesheet href=/styles.css><link rel=stylesheet href=/css/fork-awesome.min.css><link href=/favicon.png rel=icon><meta name=description content><meta name=keywords content><meta name=author content="jazzfool"><meta name=generator content="Hugo 0.85.0"></head><body><header role=banner><hgroup><h1><a href=/>$ jazzfool.github.io</a></h1><h2></h2></hgroup></header><nav role=navigation><fieldset class=mobile-nav><select onchange="location=this.value"><option value>Navigate…</option><option value=/>» Articles</option><option value=https://github.com/jazzfool>» GitHub</option></select></fieldset><ul class=main-navigation><li><a href=/ title=Articles>Articles</a></li><li><a href=https://github.com/jazzfool title=GitHub target=_blank rel="noopener noreferrer">GitHub</a></li></ul><ul class=subscription></ul></nav><div id=main><div id=content><div><article class=hentry role=article><header><p class=meta>Sep 7, 2023
+- 9 minute read</p><h1 class=entry-title>How to set up an STM32 development environment, from scratch</h1></header><div class=entry-content><nav id=TableOfContents><ul><li><ul><li><a href=#what-youll-need>What you&rsquo;ll need</a></li><li><a href=#make-me-a-cmake>Make me a CMake</a></li><li><a href=#c>C!</a></li></ul></li></ul></nav><p align=center><img src=/static/stm32f756zg.jpg alt="photo of an STM32F756ZG Nucleo-144 microcontroller development board" width=400></p><p>This is an STM32F756ZG Nucleo-144 development board.</p><p>When I first started playing with it, I was disappointed by most sources telling you to simply use the STM32CubeIDE (or similar). I don&rsquo;t think you&rsquo;ll actually <em>understand</em> anything about embedded development by using those tools <em>to learn</em> (although they could absolutely be helpful for development speed - but that&rsquo;s not what we&rsquo;re here for).</p><p>This guide is mainly for the STM32F7 series, but there&rsquo;s really no reason why you couldn&rsquo;t also use it for other boards with some minor tweaks!</p><p>This guide is adapted from
+<a href=https://github.com/cpq/bare-metal-programming-guide/tree/main target=_blank rel=noopener>cpq/bare-metal-programming-guide</a>, with lots of opinionated changes.</p><h2 id=what-youll-need>What you&rsquo;ll need</h2><ul><li>An STM32 (duh)</li><li>A PDF copy of your STM32&rsquo;s reference manual, user manual, and programming manual</li><li>Micro-USB to USB-X cable (X = whatever plugs into your development computer) - making sure the cable supports data transmission</li><li>A working <code>arm-none-eabi-gcc</code> installation (see
+<a href=https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain target=_blank rel=noopener>here</a>)</li><li>A working <code>stlink</code> installation (see
+<a href=https://github.com/stlink-org/stlink target=_blank rel=noopener>here</a>)</li><li>A working <code>cmake</code> and <code>ninja</code> installation (see
+<a href=https://cmake.org target=_blank rel=noopener>here</a> and
+<a href=https://ninja-build.org target=_blank rel=noopener>here</a>)</li></ul><p>The USB cable will let us flash our program onto the memory via the built-in ST-Link v2 hardware on the development board. As for the software:</p><ul><li><code>arm-none-eabi-gcc</code> is a GNU compiler toolchain specialised by Arm to target embedded ARM processors (like the one we have on the STM32). We can&rsquo;t just use any old C compiler.</li><li><code>stlink</code> is a handy little CLI utility to flash data over the USB ST-Link connection into our STM32 memory.</li><li><code>cmake</code> is a <em>meta</em>-build generator, and <code>ninja</code> is a build system. In other words, we&rsquo;ll be using CMake to generate Ninja build files.</li></ul><h2 id=make-me-a-cmake>Make me a CMake</h2><p>You don&rsquo;t need to be a CMake expert to get this set up; I&rsquo;ll explain as I go along. It&rsquo;s a fairly simple language: Pretty much everything is based around stringly-typed variables and functions.</p><p>Firstly, we need to create a folder for our project to live in. This can be located anywhere, and at some point you&rsquo;ll definitely want to push this to a remote Git repository.</p><p>Inside that folder, we&rsquo;ll need a file called <code>CMakeLists.txt</code>, which describes our meta-build steps (CMake reads those build steps and generates an <em>actual</em> build file which we can execute with Ninja).</p><p>At the top we&rsquo;ll need some small setup:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake><span style=color:#b58900>cmake_minimum_required</span>(<span style=color:#2aa198>VERSION</span> <span style=color:#2aa198>3.16</span>)
+
+<span style=color:#586e75># always use the ARM GCC compiler
+</span><span style=color:#586e75></span><span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_C_COMPILER</span> <span style=color:#2aa198>arm-none-eabi-gcc</span>)
+<span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_CXX_COMPILER</span> <span style=color:#2aa198>arm-none-eabi-g++</span>)
+<span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_ASM_COMPILER</span> <span style=color:#2aa198>arm-none-eabi-gcc</span>)
+<span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_SYSTEM_NAME</span> <span style=color:#2aa198>Generic</span>)
+<span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_SYSTEM_PROCESSOR</span> <span style=color:#2aa198>arm</span>)
+<span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_C_COMPILER_FORCED</span> <span style=color:#2aa198>TRUE</span>)
+</code></pre></div><p>Here we&rsquo;re simply specifying a minimum version of CMake that can run this script, and that our project will <em>always</em> compile with the <code>arm-none-eabi-gcc</code> compiler. CMake isn&rsquo;t really aware of this cross-compilation toolchain we&rsquo;ve set up so we just say that it&rsquo;s a &ldquo;Generic&rdquo; system and that CMake shouldn&rsquo;t try to verify whether the compiler works, like it usually does (<code>CMAKE_C_COMPILER_FORCED</code>).</p><p>There are also a set of compiler flags we&rsquo;ll need in order to configure the compiler to produce a binary that our STM32 will like:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake><span style=color:#b58900>set</span>(<span style=color:#2aa198>ARM_FLAGS</span>
+    <span style=color:#2aa198>-mcpu=cortex-m7</span>     <span style=color:#586e75># target the ARM Cortex-M7 CPU
+</span><span style=color:#586e75></span>    <span style=color:#2aa198>--specs=nosys.specs</span> <span style=color:#586e75># no system calls!
+</span><span style=color:#586e75></span>    <span style=color:#2aa198>--specs=nano.specs</span>  <span style=color:#586e75># use newlib-nano (really slim libc)
+</span><span style=color:#586e75></span>    <span style=color:#2aa198>-nostdlib</span>           <span style=color:#586e75># no stdlib luxuries here!
+</span><span style=color:#586e75></span>)
+</code></pre></div><p>Right now <code>ARM_FLAGS</code> isn&rsquo;t being used anywhere, it&rsquo;s just a variable we made up, but it&rsquo;ll come in handy later.</p><p>Now we can declare our project - for which we&rsquo;ll only be using the C and Assembly language:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake><span style=color:#b58900>project</span>(<span style=color:#2aa198>stm32</span> <span style=color:#2aa198>C</span> <span style=color:#2aa198>ASM</span>)
+</code></pre></div><p>If you wanted to use C++ in your project, you would also add <code>CXX</code> in there.</p><p>Next we&rsquo;ll want to configure the linker, which is the program that runs after compilation that &ldquo;links&rdquo; all the different parts of your program into one binary file. We can&rsquo;t rely on the linker to lay out the program data correctly in memory, as the STM32 has very specific requirements about where everything needs to be. I implore you to look at the bare-metal-programming-guide I mentioned at the start to learn about the specifics of this, but essentially we&rsquo;ll need a linker script in our folder (in this case, mine is <code>STM32F756ZG.ld</code>, we&rsquo;ll write that file later) that our linker should use:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake><span style=color:#586e75># use linker script
+</span><span style=color:#586e75></span><span style=color:#b58900>set</span>(<span style=color:#2aa198>LINKER_SCRIPT</span> <span style=color:#2aa198>&#34;${CMAKE_CURRENT_SOURCE_DIR}/STM32F756ZG.ld&#34;</span>)
+<span style=color:#b58900>set</span>(<span style=color:#2aa198>CMAKE_EXE_LINKER_FLAGS</span> <span style=color:#2aa198>&#34;${CMAKE_EXE_LINKER_FLAGS} -T ${LINKER_SCRIPT}&#34;</span>)
+</code></pre></div><p>Now we need to declare that we want to build an executable binary. If you&rsquo;re playing with the STM32, you&rsquo;re probably going to be making a bunch of different little programs independent of each other, and it would be pretty annoying if you had to copy-paste the build configuration for each one. So instead, we&rsquo;ll make a helper function in CMake that will create and configure an executable target:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake><span style=color:#586e75># helper function to set up a target
+</span><span style=color:#586e75></span><span style=color:#b58900>function</span>(<span style=color:#2aa198>add_program</span> <span style=color:#2aa198>PROGRAM_NAME</span> <span style=color:#2aa198>FILES</span>)
+  <span style=color:#586e75># build an executable from the source files (FILES)
+</span><span style=color:#586e75></span>  <span style=color:#b58900>add_executable</span>(<span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span> <span style=color:#719e07>${</span><span style=color:#268bd2>FILES</span><span style=color:#719e07>}</span>)
+  <span style=color:#586e75># include the src/ directory
+</span><span style=color:#586e75></span>  <span style=color:#586e75># so that we can do #include &#34;something_in_src.h&#34;
+</span><span style=color:#586e75></span>  <span style=color:#b58900>target_include_directories</span>(
+    <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span> <span style=color:#2aa198>PRIVATE</span>
+    <span style=color:#719e07>${</span><span style=color:#268bd2>CMAKE_CURRENT_SOURCE_DIR</span><span style=color:#719e07>}</span><span style=color:#2aa198>/src</span>)
+  <span style=color:#586e75># give the ARM_FLAGS we made to the compiler
+</span><span style=color:#586e75></span>  <span style=color:#b58900>target_compile_options</span>(
+    <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span> <span style=color:#2aa198>PRIVATE</span>
+    <span style=color:#719e07>${</span><span style=color:#268bd2>ARM_FLAGS</span><span style=color:#719e07>}</span>)
+  <span style=color:#586e75># also give the same ARM_FLAGS to the linker
+</span><span style=color:#586e75></span>  <span style=color:#b58900>target_link_options</span>(
+    <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span> <span style=color:#2aa198>PRIVATE</span>
+    <span style=color:#719e07>${</span><span style=color:#268bd2>ARM_FLAGS</span><span style=color:#719e07>}</span>)
+  <span style=color:#586e75># rerun the linking step if our linker script changes
+</span><span style=color:#586e75></span>  <span style=color:#b58900>set_target_properties</span>(
+    <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span> <span style=color:#2aa198>PROPERTIES</span>
+    <span style=color:#2aa198>LINK_DEPENDS</span> <span style=color:#719e07>${</span><span style=color:#268bd2>LINKER_SCRIPT</span><span style=color:#719e07>}</span>      <span style=color:#586e75># relink if linker script changes
+</span><span style=color:#586e75></span>    <span style=color:#2aa198>OUTPUT_NAME</span>  <span style=color:#2aa198>&#34;${PROGRAM_NAME}.elf&#34;</span> <span style=color:#586e75># *.elf out
+</span><span style=color:#586e75></span>  )
+  <span style=color:#586e75># run objcopy to turn .elf into .bin (i.e., a big blob of firmware)
+</span><span style=color:#586e75></span>  <span style=color:#b58900>add_custom_command</span>(<span style=color:#2aa198>TARGET</span> <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span> <span style=color:#2aa198>POST_BUILD</span>
+    <span style=color:#2aa198>COMMAND</span> <span style=color:#2aa198>arm-none-eabi-objcopy</span>
+    <span style=color:#2aa198>ARGS</span> <span style=color:#2aa198>-O</span> <span style=color:#2aa198>binary</span> <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span><span style=color:#2aa198>.elf</span> <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span><span style=color:#2aa198>.bin</span>
+    <span style=color:#2aa198>WORKING_DIRECTORY</span> <span style=color:#719e07>${</span><span style=color:#268bd2>CMAKE_CURRENT_BINARY_DIR</span><span style=color:#719e07>}</span>
+    <span style=color:#2aa198>COMMENT</span> <span style=color:#2aa198>&#34;Forming binary blob ${PROGRAM_NAME}.bin&#34;</span>
+    )
+  <span style=color:#586e75># helper target to flash bin to STM32
+</span><span style=color:#586e75></span>  <span style=color:#586e75># this is where we use stlink!
+</span><span style=color:#586e75></span>  <span style=color:#b58900>add_custom_target</span>(<span style=color:#2aa198>flash-</span><span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span>
+    <span style=color:#2aa198>COMMAND</span> <span style=color:#2aa198>st-flash</span> <span style=color:#2aa198>--reset</span> <span style=color:#2aa198>write</span> <span style=color:#719e07>${</span><span style=color:#268bd2>PROGRAM_NAME</span><span style=color:#719e07>}</span><span style=color:#2aa198>.bin</span> <span style=color:#2aa198>0x8000000</span>
+    <span style=color:#2aa198>WORKING_DIRECTORY</span> <span style=color:#719e07>${</span><span style=color:#268bd2>CMAKE_CURRENT_BINARY_DIR</span><span style=color:#719e07>}</span>
+    )
+<span style=color:#b58900>endfunction</span>()
+</code></pre></div><p>One last thing we need to do is actually write the linker script I mentioned (in this case, STM32F756ZG.ld):</p><pre><code class=language-ld data-lang=ld>ENTRY(_reset_handler);
+
+MEMORY {
+    flash(rx) : ORIGIN = 0x08000000, LENGTH = 1024K
+    sram(rwx) : ORIGIN = 0x20000000, LENGTH = 192K
+}
+
+/* SBP at end of SRAM */
+/* stack grows downwards! */
+_estack = ORIGIN(sram) + LENGTH(sram);
+
+SECTIONS {
+    .vectors : { KEEP(*(.vectors)) } &gt; flash
+    .text    : { *(.text*) }         &gt; flash
+    .rodata  : { *(.rodata*) }       &gt; flash
+
+    .data : {
+        _sdata = .;
+        *(.first_data)
+        *(.data SORT(.data.*))
+        _edata = .;
+    } &gt; sram AT &gt; flash
+    _sidata = LOADADDR(.data);
+
+    .bss : {
+        _sbss = .;
+        *(.bss SORT(.bss.*) COMMON)
+        _ebss = .;
+    } &gt; sram
+
+    . = ALIGN(8);
+    _end = .;
+}
+</code></pre><p>This may all seem a bit like magic, but it&rsquo;s important you understand: Our STM32 likes everything in specific places, as we can see from the reference manual.</p><p align=center><img src=/static/stm32-memory.png alt="diagram of the STM32F756ZG memory layout from the reference manual" width=500></p><p>Comparing that diagram to our linker script, we see that:</p><ul><li>Flash memory starts at 0x08000000 (&ldquo;Flash memory on AXIM interface&rdquo;)</li><li>SRAM starts at 0x20000000 (&ldquo;512-Mbyte Block 1 SRAM&rdquo;)</li></ul><p>The very first two things in our flash memory is <code>.vectors</code>, which will contain our initial stack pointer, <code>_estack</code>, and our reset handler function address, <code>_reset_handler</code> (which will essentially act as the entry-point).</p><h2 id=c>C!</h2><p>In our project folder let&rsquo;s create a sub-folder called <code>src</code> where our source files will live. For now we&rsquo;ll just create a file called setup.c - which will do nothing but the most minimal setup.</p><p>setup.c will look like this:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#dc322f>int</span> <span style=color:#268bd2>main</span>(<span style=color:#dc322f>void</span>)
+{
+    <span style=color:#586e75>/* your program will go here */</span>
+}
+
+__attribute((<span style=color:#268bd2>naked</span>, noreturn)) <span style=color:#dc322f>void</span> _reset_handler(<span style=color:#dc322f>void</span>)
+{
+    <span style=color:#586e75>/* defined by ld */</span>
+    <span style=color:#719e07>extern</span> <span style=color:#dc322f>long</span> _sbss, _ebss, _sdata, _edata, _sidata;
+    <span style=color:#719e07>for</span> (<span style=color:#dc322f>long</span><span style=color:#719e07>*</span> p <span style=color:#719e07>=</span> <span style=color:#719e07>&amp;</span>_sbss; p <span style=color:#719e07>&lt;</span> <span style=color:#719e07>&amp;</span>_ebss; <span style=color:#719e07>++</span>p)
+        <span style=color:#719e07>*</span>p <span style=color:#719e07>=</span> <span style=color:#2aa198>0</span>;
+    <span style=color:#719e07>for</span> (<span style=color:#dc322f>long</span> <span style=color:#719e07>*</span>pdst <span style=color:#719e07>=</span> <span style=color:#719e07>&amp;</span>_sdata, <span style=color:#719e07>*</span>psrc <span style=color:#719e07>=</span> <span style=color:#719e07>&amp;</span>_sidata; pdst <span style=color:#719e07>&lt;</span> <span style=color:#719e07>&amp;</span>_edata;)
+        <span style=color:#719e07>*</span>pdst<span style=color:#719e07>++</span> <span style=color:#719e07>=</span> <span style=color:#719e07>*</span>psrc<span style=color:#719e07>++</span>;
+
+    main();
+    <span style=color:#586e75>/* loop forever */</span>
+    <span style=color:#719e07>for</span> (;;)
+        (<span style=color:#dc322f>void</span>)<span style=color:#2aa198>0</span>;
+}
+
+<span style=color:#586e75>/* extern decl for vtab */</span>
+<span style=color:#586e75>/* takes places of initial stack ptr */</span>
+<span style=color:#586e75>/* see linker script */</span>
+<span style=color:#719e07>extern</span> <span style=color:#dc322f>void</span> _estack(<span style=color:#dc322f>void</span>);
+
+<span style=color:#586e75>/* vector table of our function pointers */</span>
+__attribute__((section(<span style=color:#2aa198>&#34;.vectors&#34;</span>))) <span style=color:#dc322f>void</span> (<span style=color:#719e07>*</span><span style=color:#719e07>const</span> vtab[<span style=color:#2aa198>16</span> <span style=color:#719e07>+</span> <span style=color:#2aa198>91</span>])(<span style=color:#dc322f>void</span>) <span style=color:#719e07>=</span> {
+    _estack, _reset_handler
+};
+</code></pre></div><p>So there&rsquo;s a lot happening here. Let&rsquo;s break it down.</p><p>The STM32 has a bunch of &ldquo;handlers&rdquo; that it can invoke. These can handle interrupt requests, or faults, or in our case, <strong>resets</strong>. The CPU knows what handlers to invoke by consulting the <code>.vectors</code> table.</p><p>We use GCC-specific attributes <code>naked</code> and <code>noreturn</code> on our reset handler to indicate that:</p><ol><li>Do <em>not</em> include a function prologue/epilogue. If you&rsquo;ve ever looked at Assembly code, you&rsquo;ll notice that every function is preceded by a few instructions, and then followed by a few instructions. This is for pushing and popping to the stack and helps keep track of a few registers as we jump into and out of function calls. In this case, we do not need them.</li><li>This function will <strong>never</strong> return (as we can see from the endless loop).</li></ol><p>Dissecting the body of <code>_reset_handler</code>;</p><ul><li>The <code>.data</code> section (see the linker script) is all our global variables that need to be initialised with data. In this case, that data is located in flash memory along with our program, but we need that data in SRAM to actually use it! Hence we copy them over byte-by-byte in a loop.</li><li>The <code>.bss</code> section is all our global variables that need to be initialised to zero. Similar to <code>.data</code> we copy it over to SRAM, but in this case we just need to copy zero into that memory.</li></ul><p>At the bottom we have a variable declaration named <code>vtab</code>, which is our vector table that is going to be explicitly placed in the <code>.vectors</code> section, thanks to the attribute. This lets us initialise the vectors table with the data we want (<code>_estack</code> followed by the <code>_reset_handler</code> function address).</p><p>Great! Now we can build and flash this program. To build it, we can go back to our CMakeLists.txt and at the bottom add:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake><span style=color:#b58900>add_program</span>(<span style=color:#2aa198>setup</span> <span style=color:#2aa198>&#34;src/setup.c&#34;</span>)
+</code></pre></div><p>To avoid messying our project folder, we&rsquo;ll create a separate folder inside our project folder for all the build files:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-sh data-lang=sh>mkdir build <span style=color:#719e07>&amp;&amp;</span> <span style=color:#b58900>cd</span> build
+</code></pre></div><p>Then generate our Ninja build file:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake>cmake -G Ninja ..
+</code></pre></div><p>And finally, build:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cmake data-lang=cmake>cmake --build .
+</code></pre></div><p>You should see a <code>setup.bin</code> file appear in the build folder. We just need to flash this to our STM32 now. Thanks to the powers of our CMake configuration, we can flash it via Ninja:</p><pre><code>ninja flash-setup
+</code></pre><p>Et voila! Your program should now be flashed to your STM32 and will do absolutely nothing. The next thing you need to do is crack open your PDF manuals and figure out how to blink that LED.
+Some hints:</p><ul><li>The user manual will specify which pin corresponds to which LED</li><li>The reference manual will specify the memory addresses for each pin group, and the registers under each pin group</li><li>You&rsquo;ll need to enable the clock for the pin group via RCC in the <code>RCC_AHB1ENR</code> register</li></ul></div><footer><p class=meta><span class="byline author vcard">Posted by <span class=fn>jazzfool</span></span>
+<time>Sep 7, 2023</time></span></p><p class=meta><a class="basic-alignment left" href=/post/gfxdrivers-pt1/ title="Diving into graphics drivers, Part 1">Diving into graphics drivers, Part 1</a></p></footer></article></div><aside class="sidebar thirds"><section class="first odd"><p></p></section><ul class=sidebar-nav><li class=sidebar-nav-item></li></ul></aside></div></div><footer role=contentinfo><p>Copyright &copy; 2023 jazzfool - <a href=/license/>License</a> -
+<span class=credit>Powered by <a target=_blank href=https://gohugo.io rel="noopener noreferrer">Hugo</a> and <a target=_blank href=https://github.com/parsiya/hugo-octopress/ rel="noopener noreferrer">Hugo-Octopress</a> theme.</p></footer></body></html>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inconsolata&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 body {
@@ -24,7 +24,7 @@ div#content {
 }
 
 header[role=banner] h1 a {
-  font-family: "Inconsolata" !important;
+  font-family: "Jetbrains Mono" !important;
   font-size: 32px;
 }
 
@@ -34,11 +34,11 @@ nav {
 
 code {
   padding: 1rem;
-  font-family: "Inconsolata" !important;
+  font-family: "Jetbrains Mono" !important;
 }
 
 pre code span {
-  font-family: "Inconsolata" !important;
+  font-family: "Jetbrains Mono" !important;
 }
 
 pre {

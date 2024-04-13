@@ -1,0 +1,215 @@
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=en lang=en-us><head><meta charset=utf-8><meta name=viewport content="width=device-width,minimum-scale=1,maximum-scale=1"><link href=/css/fonts.css rel=stylesheet type=text/css><title>Diving into graphics drivers, Part 2: AGX Detour</title><link rel=stylesheet href=/css/hugo-octopress.css><link rel=stylesheet href=/styles.css><link rel=stylesheet href=/css/fork-awesome.min.css><link href=/favicon.png rel=icon><meta name=description content><meta name=keywords content><meta name=author content="jazzfool"><meta name=generator content="Hugo 0.85.0"></head><body><header role=banner><hgroup><h1><a href=/>$ jazzfool.github.io</a></h1><h2></h2></hgroup></header><nav role=navigation><fieldset class=mobile-nav><select onchange="location=this.value"><option value>Navigate…</option><option value=/>» Articles</option><option value=https://github.com/jazzfool>» GitHub</option></select></fieldset><ul class=main-navigation><li><a href=/ title=Articles>Articles</a></li><li><a href=https://github.com/jazzfool title=GitHub target=_blank rel="noopener noreferrer">GitHub</a></li></ul><ul class=subscription></ul></nav><div id=main><div id=content><div><article class=hentry role=article><header><p class=meta>Mar 14, 2024
+- 14 minute read</p><h1 class=entry-title>Diving into graphics drivers, Part 2: AGX Detour</h1></header><div class=entry-content><nav id=TableOfContents><ul><li><ul><li><a href=#introduction>Introduction</a></li><li><a href=#understanding-register-pressure>Understanding register pressure</a></li><li><a href=#putting-it-together>Putting it together</a><ul><li><a href=#unit-testing>Unit testing</a></li><li><a href=#optimizing>Optimizing</a></li><li><a href=#writing>Writing</a></li></ul></li><li><a href=#retrospective>Retrospective</a></li></ul></li></ul></nav><p><em>The following section was written on 2023-08-05.</em></p><h2 id=introduction>Introduction</h2><p>For me, learning is all about getting your hands dirty. I&rsquo;ve been looking at Mesa source code lately (and have already made one contribution thus far!), and I&rsquo;ve found another
+<a href=https://gitlab.freedesktop.org/mesa/mesa/-/issues/7539 target=_blank rel=noopener>issue</a> to tackle:</p><p align=center><img src=/static/gfxdrivers/mesa7539_1.png alt="Mesa ticket #7539, section 1"></p><p>So we have our background, AGX (Apple&rsquo;s GPU) has an instruction, <code>fcmpsel</code> (and its integer counterpart, <code>icmpsel</code>), which essentially perform <code>cmp(a, b) ? c : d</code>. If you want more information about these instructions,
+<a href=https://dougallj.github.io/applegpu/docs.html target=_blank rel=noopener>dougallj&rsquo;s docs</a> are an excellent resource.</p><p>Reading on:</p><p align=center><img src=/static/gfxdrivers/mesa7539_2.png alt="Mesa ticket #7539, section 2"></p><p>Here states the issue: NIR does not have an equivalent to AGX <code>fcmpsel</code>, so it eventually turns into two <code>cmpsel</code> instructions. Obviously, this is suboptimal: It increases code size and it misses some small performance gains in shaders.</p><p>I&rsquo;m going to skip forward a bit here (but you should definitely read the issue itself! It&rsquo;s really quite well-written and is telling of how shader compilers optimize register usage), but at the end the issue it states the possible heuristics we can select to fix this issue:</p><p align=center><img src=/static/gfxdrivers/mesa7539_3.png alt="Mesa ticket #7539, section 3"></p><p>This may seem roundabout: Why are there different heuristics being suggested? Isn&rsquo;t this just a simple case the optimizer can merge? Well, the issue is that those two emitted <code>cmpsel</code>s may be far apart, so we need to be aware of our usage of registers when ordering instructions.</p><h2 id=understanding-register-pressure>Understanding register pressure</h2><p>To understand why register usage matters, we first need to understand how GPUs execute shaders.</p><p>It goes without saying, but GPUs are highly parallel processors, with really only one job: <em>Process as much data as possible, as fast as possible</em>. The processing that is involved with that data is what our shaders are, and those shaders are fairly dumb. The (very) wide SIMD units in each compute unit (or SM in Nvidia terms) are simplistic as far as modern processing goes, lacking any of the fancy machinery that, say, the CPU has. So then, it should be clear that the data we process should be done in chunks that can fit on each compute unit. Those chunks of work are called &ldquo;waves&rdquo; (or warps, again in Nvidia terms).</p><p>Shaders almost always need to access some <strong>varying</strong> data elsewhere (that is, data that varies for each &ldquo;slice&rdquo; of the SIMD, not <strong>uniform</strong> data that can live rent-free in the SGPR). That data tends to be far away from the compute unit, e.g., a sampled image or a storage buffer. Even though we can do as much as possible to leverage caching and minimize latency of such accesses, such as using tiled image memory layouts so that cache fetches are spatially localized, there will <em>always</em> be some latency with moving that memory to the compute unit. The next best thing that can be done is to <em>hide</em> the latency by doing something else productive instead of idling. What we could do is run multiple waves on a single compute unit, scheduled so that once we hit a memory fetch on one wave, we swap out to another wave to start processing in the meantime. The number of waves we can assign to one compute unit is called <strong>occupancy</strong> and the level of occupancy primarily depends upon how much register space we have.</p><p>If we don&rsquo;t have much register space - or conversely, each wave (shader invocation) takes up a lot register space (this is called <strong>register pressure</strong>) - our occupancy won&rsquo;t be great. There are two options to deal with this:</p><ul><li>Either sacrifice occupancy and move on</li><li>Or, &ldquo;spill&rdquo; the registers for higher occupancy</li></ul><p>Each option has its own costs which is why having high occupancy is not always a good thing. To &ldquo;spill&rdquo; the registers is to temporarily store some registers elsewhere (CU local memory) so that at any given snapshot in time, the wave is using less registers and therefore more waves can run concurrently on each compute unit. However, loading registers to/from local memory is not free and also has some performance penalty. Thus, it&rsquo;s really about striking a balance between good occupancy so the GPU always has something to do, but also not spilling so many registers that the GPU spends a lot of time loading registers back from local memory.</p><p>Hopefully that explains why minimizing shader register usage is so important. If we can avoid using registers without even spilling, it&rsquo;s the most ideal situation to be in. In our case, how we merge those two <code>cmpsel</code> instructions in certain cases could affect how long we hold onto some registers.</p><h2 id=putting-it-together>Putting it together</h2><p>Now that we understand the problem, we should solve it. Alyssa has kindly listed the tasks that need to be done for this issue:</p><p align=center><img src=/static/gfxdrivers/mesa7539_4.png alt="Mesa ticket #7539, section 4"></p><h3 id=unit-testing>Unit testing</h3><p>Getting on with it, let&rsquo;s head into <code>test-optimizer.cpp</code> to write some test cases for this particular AGX sequence. Looking at an existing test to get a rough idea of what my test should look like:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c>TEST_F(Optimizer, FusedFnegCancel)
+{
+   CASE32(agx_fmul_to(b, out, wx, agx_neg(agx_fmov(b, agx_neg(wx)))),
+          agx_fmul_to(b, out, wx, wx));
+
+   CASE32(agx_fmul_to(b, out, wx, agx_neg(agx_fmov(b, agx_neg(agx_abs(wx))))),
+          agx_fmul_to(b, out, wx, agx_abs(wx)));
+}
+</code></pre></div><p>Fairly simple: <code>CASE32</code> takes an input source, and compares it to the expected output source. For example, this one just fuses double negatives in floating-point arithmetic. As a side note, those instruction builder functions (e.g., <code>agx_abs</code>) are actually generated with <code>agx_builder.h.py</code>, so for reference, this is how I configured the build:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-sh data-lang=sh>meson configure -Dvulkan-drivers<span style=color:#719e07>=</span><span style=color:#2aa198>&#34;&#34;</span> -Dgallium-drivers<span style=color:#719e07>=</span><span style=color:#2aa198>&#34;asahi&#34;</span> -Dtools<span style=color:#719e07>=</span><span style=color:#2aa198>&#34;drm-shim,asahi&#34;</span> -Dbuild-tests<span style=color:#719e07>=</span><span style=color:#2aa198>&#34;true&#34;</span> -Dglx<span style=color:#719e07>=</span><span style=color:#2aa198>&#34;disabled&#34;</span> build/
+</code></pre></div><p>Now I can write my first little test case:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c>TEST_F(Optimizer, FusedCmpsel)
+{
+   CASE32(
+      {
+         wx.type <span style=color:#719e07>=</span> AGX_INDEX_UNIFORM;
+         wy.type <span style=color:#719e07>=</span> AGX_INDEX_UNIFORM;
+         agx_index tmp <span style=color:#719e07>=</span> agx_temp(b<span style=color:#719e07>-&gt;</span>shader, AGX_SIZE_32);
+         agx_fcmpsel_to(b, tmp, wx, wy, agx_immediate(<span style=color:#2aa198>0</span>), agx_immediate(<span style=color:#2aa198>1</span>),
+                        AGX_FCOND_LT);
+         agx_icmpsel_to(b, out, tmp, agx_immediate(<span style=color:#2aa198>0</span>), wy, wz, AGX_ICOND_UEQ);
+      },
+      { agx_fcmpsel_to(b, out, wx, wy, wz, wy, AGX_FCOND_LT); });
+}
+</code></pre></div><p>One particular thing to note is that the <code>ne</code> condition of <code>icmpsel.ne</code> can be set up in two ways. Either <code>src2</code> and <code>src3</code> can be swapped, or the <code>agx_instr::invert_cond</code> flag can be set. I don&rsquo;t actually see much usage of <code>invert_cond</code>, and in fact the AGX opcodes emitted (when NIR <code>bcsel</code> is encountered) use the former method, where the last two sources are swapped.</p><p>We should also add a case for <code>icmpsel</code> too:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c>TEST_F(Optimizer, FusedCmpsel)
+{
+   CASE32(<span style=color:#586e75>/* ... */</span>);
+
+   CASE32(
+      {
+         wx.type <span style=color:#719e07>=</span> AGX_INDEX_UNIFORM;
+         wy.type <span style=color:#719e07>=</span> AGX_INDEX_UNIFORM;
+         agx_index tmp <span style=color:#719e07>=</span> agx_temp(b<span style=color:#719e07>-&gt;</span>shader, AGX_SIZE_32);
+         agx_icmpsel_to(b, tmp, wx, wy, agx_immediate(<span style=color:#2aa198>0</span>), agx_immediate(<span style=color:#2aa198>1</span>),
+                        AGX_ICOND_ULT);
+         agx_icmpsel_to(b, out, tmp, agx_immediate(<span style=color:#2aa198>0</span>), wy, wz, AGX_ICOND_UEQ);
+      },
+      { agx_icmpsel_to(b, out, wx, wy, wz, wy, AGX_ICOND_ULT); });
+}
+</code></pre></div><p>We&rsquo;re forcing <code>wx</code> and <code>wy</code> to be uniform so that we can test one of our first heuristics.</p><h3 id=optimizing>Optimizing</h3><p>This is the fun part - where we actually write the code that optimizes these instructions. Before we can do that however, we should pick out the heuristics we&rsquo;re going to use. Ideally I want to only implement <em>either</em> a forward pass or backwards pass. This fact simplifies things a bit when it comes to deciding which heuristics to use, as we&rsquo;ll just use the heuristics that perform best when they&rsquo;re a part of the forward or backwards pass.</p><p>For the <strong>forward pass</strong> heuristics, we could:</p><ul><li><strong>Heuristic 1:</strong> Fuse when <code>a</code> and <code>b</code> are constant/uniform (i.e., in the SGPR)</li></ul><p>For the <strong>backward pass</strong> heuristics, we could:</p><ul><li><strong>Heuristic 2:</strong> Fuse when the <code>bool</code> (from the first <code>cmpsel</code>) is <em>only</em> used by the second <code>icmpsel</code></li><li><strong>Heuristic 3:</strong> Fuse when <code>c</code> and <code>d</code> are constant/uniform</li></ul><p>Now let&rsquo;s analyse the cost (that is, the effect on register pressure) of each of these heuristics. For each scenario, I&rsquo;ll make the assumption that we&rsquo;re in the best case and the <code>cmpsel</code>s are the only users of values <code>a</code> to <code>d</code>, and <code>bool</code>. We&rsquo;ll also ignore the pressure of <code>dest</code> since that&rsquo;s always going to be there. Just as a side note, I&rsquo;m using my own little made-up metric of <code>RP</code> to indicate arbitrary units of register pressure, per value.</p><p>For <strong>Heuristic 1</strong>:</p><p>The source IR&mldr;</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#586e75># const a, b
+</span><span style=color:#586e75></span><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>bool</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>        <span style=color:#586e75># RP = +1 (bool)
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>icmpsel.ne</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>bool</span>, <span style=color:#2aa198>0</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +3 (c + d + bool)
+</span></code></pre></div><p>Optimizes into:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#586e75># const a, b
+</span><span style=color:#586e75></span><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>bool</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>  <span style=color:#586e75># RP = +1 (bool)  &lt;&lt; DCE?
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>fcmpsel</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +2 (c + d)
+</span></code></pre></div><p>This scenario gives us a clear win, since we can eliminate the first <code>fcmpsel</code> in many cases, and don&rsquo;t need to keep around <code>bool</code> as a result either. The peak register pressure also ends up being lower assuming nothing needs to use <code>bool</code> besides other <code>cmpsels</code> - or if they do, <code>bool</code> hopefully don&rsquo;t need to live as long and can be killed off earlier thanks to this heuristic. I&rsquo;ll give this heuristic the thumbs up!</p><p>For <strong>Heuristic 2</strong>:</p><p>The source IR&mldr;</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>bool</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>        <span style=color:#586e75># RP = +3 (a + b + bool)
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>icmpsel.ne</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>bool</span>, <span style=color:#2aa198>0</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +3 (c + d + bool)
+</span></code></pre></div><p>Optimizes into:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +4 (a + b + c + d)
+</span></code></pre></div><p>This heuristic seems to be a bit hit or miss. In the absolute worst case scenario, as shown above, if <code>a</code> and <code>b</code> are killed by <code>fcmpsel</code>, and <code>c</code> and <code>d</code> are killed by <code>icmpsel</code> but the lifetime of both pairs is mutually exclusive, then we actually end up with a greater peak register pressure since we now need <code>a</code>, <code>b</code>, <code>c</code>, and <code>d</code> all alive at the same time. For now, I&rsquo;ll give this a &ldquo;meh&rdquo; rating. How well this heuristic performs depends entirely upon the shader. On a side note, this is why it&rsquo;s worthwhile to test our heuristics on something like <code>shader-db</code>; so that we can get a more practical real-world analysis.</p><p>For <strong>Heuristic 3</strong>:</p><p>The source IR&mldr;</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#586e75># const c, d
+</span><span style=color:#586e75></span><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>bool</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>        <span style=color:#586e75># RP = +3 (a + b + bool)
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>icmpsel.ne</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>bool</span>, <span style=color:#2aa198>0</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +3 (c + d + bool)
+</span></code></pre></div><p>Optimizes into&mldr;</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#586e75># const c, d
+</span><span style=color:#586e75></span><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>        <span style=color:#586e75># RP = +2 (a + b)
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>icmpsel.ne</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>bool</span>, <span style=color:#2aa198>0</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +3 (a + b + bool)  &lt;&lt; DCE?
+</span></code></pre></div><p>This is just the inverse case of heuristic 1, and I can also safely give this a thumbs up.</p><p>One last heuristic mentioned in the original issue that I didn&rsquo;t bring up - I&rsquo;ll label it <strong>heuristic 4</strong> - is to forward fuse <em>unconditionally</em>. Let&rsquo;s see how that would turn out:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>bool</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>        <span style=color:#586e75># RP = +3 (a + b + bool)
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>icmpsel.ne</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>bool</span>, <span style=color:#2aa198>0</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +3 (c + d + bool)
+</span></code></pre></div><p>Optimizes into&mldr;</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-asm data-lang=asm><span style=color:#268bd2>fcmpsel</span> <span style=color:#cb4b16>bool</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#2aa198>0</span>, <span style=color:#2aa198>1</span>  <span style=color:#586e75># RP = +3 (a + b + bool)
+</span><span style=color:#586e75># ...
+</span><span style=color:#586e75></span><span style=color:#cb4b16>fcmpsel</span> <span style=color:#cb4b16>dest</span>, <span style=color:#cb4b16>a</span>, <span style=color:#cb4b16>b</span>, <span style=color:#cb4b16>c</span>, <span style=color:#cb4b16>d</span>  <span style=color:#586e75># RP = +4 (a + b + c + d)
+</span></code></pre></div><p>This is like heuristic 2, but really with none of the benefit. This heuristic doesn&rsquo;t operate under the condition that the <code>icmpsel</code> is the only user of <code>bool</code>: For all we know, the register pressure here could even peak at <code>RP = +5</code>.</p><h3 id=writing>Writing</h3><p>All of those heuristics may reduce register pressure, or they may increase it, or their conditions may be too strict to be useful. Now the only way to find out is to actually run them on real shaders. Even before we can do that, we actually need to write the optimizer!</p><p>The function signature for forward optimizers tells us everything about what we need to do:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/* Heuristic 1 */</span>
+<span style=color:#719e07>static</span> <span style=color:#dc322f>void</span>
+<span style=color:#268bd2>agx_optimizer_cmpsel_h1</span>(agx_instr <span style=color:#719e07>**</span>defs, agx_instr <span style=color:#719e07>*</span>I)
+{
+    <span style=color:#586e75>/* TODO */</span>
+}
+</code></pre></div><p><code>defs</code> is an array of all the instructions, and <code>I</code> is the instruction we&rsquo;re <em>currently</em> optimizing. For all the forward heuristics, we need to first check if it actually is a case of <code>fcmpsel bool, a, b, 0, 1 -> icmpsel.ne dest, bool, 0, c, d</code>.</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/* Heuristic 1 */</span>
+<span style=color:#719e07>static</span> <span style=color:#dc322f>void</span>
+<span style=color:#268bd2>agx_optimizer_cmpsel_h1</span>(agx_instr <span style=color:#719e07>**</span>defs, agx_instr <span style=color:#719e07>*</span>I)
+{
+   <span style=color:#586e75>/* icmpsel.eq */</span>
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_ICMPSEL <span style=color:#719e07>||</span> I<span style=color:#719e07>-&gt;</span>icond <span style=color:#719e07>!=</span> AGX_ICOND_UEQ)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#586e75>/* 2nd src equals 0 */</span>
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_IMMEDIATE <span style=color:#719e07>||</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>].value <span style=color:#719e07>!=</span> <span style=color:#2aa198>0</span>)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#586e75>/* 1st src is ssa */</span>
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_NORMAL)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#586e75>/* the instruction that wrote the 1st src */</span>
+   agx_instr <span style=color:#719e07>*</span>def <span style=color:#719e07>=</span> defs[I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].value];
+
+   <span style=color:#586e75>/* 1st src was not written by cmpsel */</span>
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_FCMPSEL <span style=color:#719e07>&amp;&amp;</span> def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_ICMPSEL)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#586e75>/* the def cmpsel did not select between 0 and 1 */</span>
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_IMMEDIATE <span style=color:#719e07>||</span>
+      def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>].value <span style=color:#719e07>!=</span> <span style=color:#2aa198>0</span> <span style=color:#719e07>||</span>
+      def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_IMMEDIATE <span style=color:#719e07>||</span>
+      def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>].value <span style=color:#719e07>!=</span> <span style=color:#2aa198>1</span>)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#586e75>/*
+</span><span style=color:#586e75>      done! if we reach this point, we are 100% certain that we are dealing with
+</span><span style=color:#586e75>         our specific case of two cmpsels.
+</span><span style=color:#586e75>   */</span>
+}
+</code></pre></div><p>For heuristic 1 in particular, we need to also confirm that <code>a</code> and <code>b</code> are uniform values:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/* Heuristic 1 */</span>
+<span style=color:#719e07>static</span> <span style=color:#dc322f>void</span>
+<span style=color:#268bd2>agx_optimizer_cmpsel_h1</span>(agx_instr <span style=color:#719e07>**</span>defs, agx_instr <span style=color:#719e07>*</span>I)
+{
+   <span style=color:#586e75>/* ... */</span>
+
+   <span style=color:#586e75>/* confirm first two srcs are uniform */</span>
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_UNIFORM <span style=color:#719e07>||</span>
+       def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_UNIFORM)
+      <span style=color:#719e07>return</span>;
+}
+</code></pre></div><p>Once we confirm everything, it&rsquo;s a simple case of swapping out the opcode and operands:</p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#586e75>/* Heuristic 1 */</span>
+<span style=color:#719e07>static</span> <span style=color:#dc322f>void</span>
+<span style=color:#268bd2>agx_optimizer_cmpsel_h1</span>(agx_instr <span style=color:#719e07>**</span>defs, agx_instr <span style=color:#719e07>*</span>I)
+{
+   <span style=color:#586e75>/* ... */</span>
+
+   <span style=color:#586e75>/* replace opcode */</span>
+   I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>op;
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>==</span> AGX_OPCODE_FCMPSEL)
+      I<span style=color:#719e07>-&gt;</span>fcond <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>fcond;
+   <span style=color:#719e07>else</span> <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>==</span> AGX_OPCODE_ICMPSEL)
+      I<span style=color:#719e07>-&gt;</span>icond <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>icond;
+
+   <span style=color:#586e75>/* set first two operands from the def */</span>
+   I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>] <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>];
+   I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>] <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>];
+   <span style=color:#586e75>/* swap last two operands: eq -&gt; neq */</span>
+   <span style=color:#719e07>if</span> (<span style=color:#719e07>!</span>I<span style=color:#719e07>-&gt;</span>invert_cond) {
+      agx_index tmp <span style=color:#719e07>=</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>];
+      I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>] <span style=color:#719e07>=</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>];
+      I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>] <span style=color:#719e07>=</span> tmp;
+   }
+}
+</code></pre></div><p>It&rsquo;s at this point I realize that heuristic 2 would not be trivial to implement. The backwards pass only keeps track of the last use of a def and whether it has multiple uses. It never tracks <em>all</em> of the uses of a def. By the time we arrive to the first <code>cmpsel</code> that defs <code>bool</code>, we can only fuse one subsequent <code>icmpsel.ne</code> and thus it would <em>not</em> converge in a single iteration. It would be possible to restructure how uses are tracked in the backwards optimizer, but that&rsquo;s already creeping well out of the scope of my patch and, doubly, it would cost much more memory to track.</p><p>Anyway, I won&rsquo;t bore you with the code, but in short, we can implement heuristic 4 by taking heuristic 1 and removing the check to see if <code>a</code> and <code>b</code> are uniform, and heuristic 3 is just heuristic 1 but written as a backwards pass.</p><p>With that done, now we just need to test each one on real-world shaders, to see which one performs best overall.</p><hr><p><em>The following section was written on 2024-04-14.</em></p><h2 id=retrospective>Retrospective</h2><p>So, I never did end up testing the code, or pushing it, or merging it into Mesa. Partially this is because I had other commitments, but also partially because the process involved in getting shader-db up and running was lost on me.
+Randomly though, this little project did pop into my head 8 months later, and I went back to the Mesa issue tracker to check if the issue was still open &ndash; It was closed. I dug around and indeed the <code>cmpsel</code> fuse optimizer was in-branch, committed by Alyssa.</p><p>From what I can tell, it seems like heuristic 4 was chosen: Fuse forward unconditionally. For fun, let&rsquo;s compare my code to the code in-branch:</p><div style=display:flex;flex-direction:row><div style=width:50%><div style=overflow:scroll;margin-right:1em><p><strong>Alyssa&rsquo;s code</strong></p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#719e07>static</span> <span style=color:#dc322f>void</span>
+<span style=color:#268bd2>agx_optimizer_cmpsel</span>(agx_instr <span style=color:#719e07>**</span>defs, agx_instr <span style=color:#719e07>*</span>I)
+{
+   <span style=color:#719e07>if</span> (<span style=color:#719e07>!</span>agx_is_equiv(I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>], agx_zero()) <span style=color:#719e07>||</span> I<span style=color:#719e07>-&gt;</span>icond <span style=color:#719e07>!=</span> AGX_ICOND_UEQ <span style=color:#719e07>||</span>
+       I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_NORMAL)
+      <span style=color:#719e07>return</span>;
+   <span style=color:#586e75>// same thing but concise!
+</span><span style=color:#586e75></span>
+
+
+   agx_instr <span style=color:#719e07>*</span>def <span style=color:#719e07>=</span> defs[I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].value];
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_ICMP <span style=color:#719e07>&amp;&amp;</span> def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_FCMP)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#586e75>// ???
+</span><span style=color:#586e75></span>
+
+
+   I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>] <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>];
+   I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>] <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>];
+
+   <span style=color:#719e07>if</span> (<span style=color:#719e07>!</span>def<span style=color:#719e07>-&gt;</span>invert_cond) {
+      agx_index temp <span style=color:#719e07>=</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>];
+      I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>] <span style=color:#719e07>=</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>];
+      I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>] <span style=color:#719e07>=</span> temp;
+   }
+
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>==</span> AGX_OPCODE_ICMP) {
+      I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>=</span> AGX_OPCODE_ICMPSEL;
+      I<span style=color:#719e07>-&gt;</span>icond <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>icond;
+   } <span style=color:#719e07>else</span> {
+      I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>=</span> AGX_OPCODE_FCMPSEL;
+      I<span style=color:#719e07>-&gt;</span>fcond <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>fcond;
+   }
+}
+</code></pre></div></div></div><div style=width:50%><div style=overflow:scroll;margin-right:1em><p><strong>My code</strong></p><div class=highlight><pre style=color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#719e07>static</span> <span style=color:#dc322f>void</span>
+<span style=color:#268bd2>agx_optimizer_cmpsel</span>(agx_instr <span style=color:#719e07>**</span>defs, agx_instr <span style=color:#719e07>*</span>I)
+{
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_ICMPSEL <span style=color:#719e07>||</span> I<span style=color:#719e07>-&gt;</span>icond <span style=color:#719e07>!=</span> AGX_ICOND_UEQ)
+      <span style=color:#719e07>return</span>;
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_IMMEDIATE <span style=color:#719e07>||</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>].value <span style=color:#719e07>!=</span> <span style=color:#2aa198>0</span>)
+      <span style=color:#719e07>return</span>;
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_NORMAL)
+      <span style=color:#719e07>return</span>;
+
+   agx_instr <span style=color:#719e07>*</span>def <span style=color:#719e07>=</span> defs[I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>].value];
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_FCMPSEL <span style=color:#719e07>&amp;&amp;</span> def<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>!=</span> AGX_OPCODE_ICMPSEL)
+      <span style=color:#719e07>return</span>;
+
+   <span style=color:#719e07>if</span> (def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_IMMEDIATE <span style=color:#719e07>||</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>].value <span style=color:#719e07>!=</span> <span style=color:#2aa198>0</span> <span style=color:#719e07>||</span>
+       def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>].type <span style=color:#719e07>!=</span> AGX_INDEX_IMMEDIATE <span style=color:#719e07>||</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>].value <span style=color:#719e07>!=</span> <span style=color:#2aa198>1</span>)
+      <span style=color:#719e07>return</span>;
+
+   I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>] <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>0</span>];
+   I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>] <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>1</span>];
+
+   <span style=color:#719e07>if</span> (<span style=color:#719e07>!</span>I<span style=color:#719e07>-&gt;</span>invert_cond) {
+      agx_index tmp <span style=color:#719e07>=</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>];
+      I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>2</span>] <span style=color:#719e07>=</span> I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>];
+      I<span style=color:#719e07>-&gt;</span>src[<span style=color:#2aa198>3</span>] <span style=color:#719e07>=</span> tmp;
+   }
+
+   I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>op;
+   <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>==</span> AGX_OPCODE_FCMPSEL)
+      I<span style=color:#719e07>-&gt;</span>fcond <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>fcond;
+   <span style=color:#719e07>else</span> <span style=color:#719e07>if</span> (I<span style=color:#719e07>-&gt;</span>op <span style=color:#719e07>==</span> AGX_OPCODE_ICMPSEL)
+      I<span style=color:#719e07>-&gt;</span>icond <span style=color:#719e07>=</span> def<span style=color:#719e07>-&gt;</span>icond;
+
+
+}
+</code></pre></div></div></div></div><p>In general, I&rsquo;m happy that I got a lot of things right (though admittedly it&rsquo;s not a lot of code). Clearly I missed some helpers to make the first few guards to the optimization far more concise, and I really have no idea what I was trying to do by checking if <code>def</code> had immediate operands, but otherwise the rest matches up pretty well!</p><p>So evidently this wasn&rsquo;t a <em>complete</em> waste of time - at least I was able to come back to it, and it was definitely an interesting foray into this side of the graphics stack.</p></div><footer><p class=meta><span class="byline author vcard">Posted by <span class=fn>jazzfool</span></span>
+<time>Mar 14, 2024</time></span></p><p class=meta><a class="basic-alignment left" href=/post/stm32-setup/ title="How to set up an STM32 development environment, from scratch">How to set up an STM32 development environment, from scratch</a></p></footer></article></div><aside class="sidebar thirds"><section class="first odd"><p></p></section><ul class=sidebar-nav><li class=sidebar-nav-item></li></ul></aside></div></div><footer role=contentinfo><p>Copyright &copy; 2024 jazzfool - <a href=/license/>License</a> -
+<span class=credit>Powered by <a target=_blank href=https://gohugo.io rel="noopener noreferrer">Hugo</a> and <a target=_blank href=https://github.com/parsiya/hugo-octopress/ rel="noopener noreferrer">Hugo-Octopress</a> theme.</p></footer></body></html>
